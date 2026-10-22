@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+/* Dark mode follows UI.md §2: opt-in via an ancestor with data-theme="dark" (set on the shell root). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --font-sans: 'Anuphan', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Anuphan', ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand: violet → pink → orange. */
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+
+  --animate-float: none;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 0.35s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  --animate-spin-slow: spin 18s linear infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0) }
+    50% { transform: translateY(-8px) }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px) }
+    to { opacity: 1; transform: none }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.9) }
+    to { opacity: 1; transform: none }
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* No pull-to-refresh or rubber-band bounce: a fast swipe down mid-test must not reload the page. */
+  overscroll-behavior-y: none;
+  scroll-padding-top: 5rem;
+}
+
+/* UI.md §24: compact desktop via a 14px root, phones keep the browser default (16px inputs, no iOS zoom). */
+@media (min-width: 640px) {
+  html { font-size: 15px; }
+}
+
+body {
+  margin: 0;
+  overscroll-behavior-y: none;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Thin scrollbars app-wide (UI.md §2). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Minimal theme: no ambient effects. `.aurora` and `.grain` are kept as no-ops so markup stays stable. */
+.aurora,
+.grain::after {
+  display: none;
+}
+
+/* One accent colour. These two classes used to be gradients; they now resolve to the solid accent so
+   every page picks up the calmer look without per-component edits. */
+.text-gradient {
+  color: #6d28d9;
+}
+[data-theme='dark'] .text-gradient {
+  color: #a78bfa;
+}
+
+.bg-gradient-brand {
+  background: #6d28d9;
+}
+[data-theme='dark'] .bg-gradient-brand {
+  background: #7c3aed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
