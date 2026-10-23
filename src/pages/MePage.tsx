@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { DeepResults } from '@/components/charts/DeepResults'
 import { DimensionBars } from '@/components/charts/DimensionBars'
 import { HoroscopeCard } from '@/components/charts/Horoscope'
-import { CharacterHero, CharacterSummaryCard, LifeOutsideWorkCard } from '@/components/charts/CharacterResults'
+import { CharacterHero, CharacterSummaryCard, LifeOutsideWorkCard, PersonalReportCard } from '@/components/charts/CharacterResults'
 import { AgreementsCard, SkillsCard } from '@/components/charts/GrowthCards'
 import { ContextCard, ExploreCard, ManagerTeamCard, MyDataCard, RoleScoresCard, SectionTitle } from '@/components/charts/RoleResults'
 import { SameTypeCard } from '@/components/charts/SameType'
@@ -119,7 +119,8 @@ function Result({ profile }: { profile: Profile }) {
         </Card>
       )}
       <CharacterHero scores={profile.scores} name={name} roles={roleResult?.classification ?? null} />
-      <CharacterSummaryCard scores={profile.scores} />
+      <PersonalReportCard profile={profile} name={name} />
+<CharacterSummaryCard scores={profile.scores} />
       <WorkfitIdCard scores={profile.scores} />
             <NextSteps go={setTab} hasRoles={Boolean(roleResult)} />
           </>
