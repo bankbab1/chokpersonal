@@ -6,6 +6,9 @@ import type { Background } from '@/domain/culture'
 import { DEEP_ITEMS, type DeepAnswers } from '@/domain/deep'
 import { computeScores } from '@/domain/scoring'
 import type { PeerRating } from '@/domain/peer'
+import { emptyContext, syntheticRoleAnswers, type ContextDimId, type ContextProfile, type GrowthRole, type RoleAnswers } from '@/domain/roles'
+import { useFun } from './fun'
+import { LEVEL_ORDER, type Level } from '@/domain/levels'
 import type { Answers, FamilyId } from '@/domain/types'
 
 export interface Consent {
@@ -22,6 +25,26 @@ interface State {
   peerRatings: PeerRating[]
   /** Optional deep modules: item id → 1–6. */
   deep: DeepAnswers
+  /** Role-interest answers (48 items): question id → option id. */
+  roles: RoleAnswers
+  answerRole: (id: string, optionId: string) => void
+  /** Working preferences the person set; only confirmed values are ever used. */
+  context: ContextProfile
+  setContext: (dim: ContextDimId, value: number | null, confirmed: boolean) => void
+  /** Question ids the person marked as unclear — content feedback only, never scored. */
+  unclear: string[]
+  toggleUnclear: (id: string) => void
+  growthRoles: GrowthRole[]
+  setGrowthRoles: (g: GrowthRole[]) => void
+  /** Removes every answer, result and setting kept on this device. */
+  deleteAll: () => void
+  /** True while the answers are the generated sample, so the test never shows them as the person's own. */
+  sample: boolean
+  /** Chosen test depth; null until the person picks one. */
+  level: Level | null
+  setLevel: (l: Level) => void
+  /** Deepest level finished so far. */
+  completedLevel?: Level
   answerDeep: (id: string, value: number) => void
   setBackground: (b: Background) => void
   addPeerRating: (r: PeerRating) => boolean
@@ -120,6 +143,26 @@ export const useAssessment = create<State>()(
       background: 'thai',
       peerRatings: [],
       deep: {},
+      roles: {},
+      answerRole: (id, optionId) => set((st) => ({ roles: { ...st.roles, [id]: optionId } })),
+      context: emptyContext(),
+      setContext: (dim, value, confirmed) => set((st) => ({ context: { ...st.context, [dim]: { value, confirmed } } })),
+      unclear: [],
+      toggleUnclear: (id) => set((st) => ({ unclear: st.unclear.includes(id) ? st.unclear.filter((x) => x !== id) : [...st.unclear, id] })),
+      growthRoles: [],
+      setGrowthRoles: (growthRoles) => set({ growthRoles }),
+      sample: false,
+      level: null,
+      setLevel: (level) => set({ level, step: 0 }),
+      completedLevel: undefined,
+      deleteAll: () => {
+        set({
+          answers: emptyAnswers(), step: 0, completedAt: undefined, deep: {}, roles: {}, context: emptyContext(), sample: false, level: null, completedLevel: undefined, growthRoles: [], unclear: [],
+          peerRatings: [], name: '', consent: { self: false, team: false, hr: false }, invitedRole: undefined, background: 'thai',
+          myId: Math.random().toString(36).slice(2, 10),
+        })
+        useFun.getState().setBirth(undefined)
+      },
       answerDeep: (id, value) => set((st) => ({ deep: { ...st.deep, [id]: value } })),
       setBackground: (background) => set({ background }),
       addPeerRating: (r) => {
@@ -147,16 +190,35 @@ export const useAssessment = create<State>()(
           return { answers: { ...s.answers, [kind]: { ...s.answers[kind], [id]: cur } } }
         }),
       setStep: (step) => set({ step }),
-      complete: () => set({ completedAt: new Date().toISOString() }),
-      reset: () => set({ answers: emptyAnswers(), step: 0, completedAt: undefined, deep: {} }),
+      complete: () =>
+        set((s) => {
+          const lvl = s.level ?? 'standard'
+          const deeper = !s.completedLevel || LEVEL_ORDER.indexOf(lvl) > LEVEL_ORDER.indexOf(s.completedLevel)
+          return { completedAt: new Date().toISOString(), completedLevel: deeper ? lvl : s.completedLevel }
+        }),
+      reset: () =>
+        set((s) => {
+          // Leaving a sample: also drop the sample's name and auto-given consent, so the real run asks properly.
+          const wasSample = s.sample || s.name === 'คุณ (ตัวอย่าง)'
+          return {
+            answers: emptyAnswers(), step: 0, completedAt: undefined, deep: {}, roles: {}, sample: false, level: null, completedLevel: undefined,
+            ...(wasSample ? { name: '', consent: { self: false, team: false, hr: false } } : {}),
+          }
+        }),
       fillDemo: (family) => {
         const f = family ?? FAMILIES[Math.floor(Math.random() * FAMILIES.length)].id
         const answers = demoAnswers(f)
+        const sc = computeScores(answers)
         set((s) => ({
           answers,
-          deep: demoDeep(computeScores(answers)),
+          deep: demoDeep(sc),
+          roles: syntheticRoleAnswers(sc, Math.round(sc.X * 13 + sc.O * 7 + sc.LD)),
           completedAt: new Date().toISOString(),
           name: s.name || 'คุณ (ตัวอย่าง)',
+          sample: true,
+          step: 0,
+          level: 'pro' as Level,
+          completedLevel: 'pro' as Level,
           consent: { self: true, team: true, hr: true, at: new Date().toISOString() },
         }))
       },
@@ -164,6 +226,19 @@ export const useAssessment = create<State>()(
     {
       name: 'workfit-assessment-v1',
       storage: createJSONStorage(() => localStorage),
+      // v1: role answers from question set th-TH-seed-1 (5-point with a middle) mean something else now — drop them.
+      version: 2,
+      migrate: (persisted, from) => {
+        let st = (persisted ?? {}) as Partial<State>
+        if (from < 1) st = { ...st, roles: {}, unclear: [] }
+        // v2: test levels. Earlier finishers did the full style test (= standard), plus roles if all 48 are answered.
+        if (from < 2) {
+          const rolesDone = Object.keys(st.roles ?? {}).length >= 48
+          const done: Level | undefined = st.completedAt ? (rolesDone ? 'pro' : 'standard') : undefined
+          st = { ...st, completedLevel: done, level: done ?? null }
+        }
+        return st as State
+      },
       // Older saves have no id: write the freshly generated one straight away so invite links and
       // response codes keep matching after a reload.
       onRehydrateStorage: () => (state) => {

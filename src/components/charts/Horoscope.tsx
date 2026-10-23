@@ -6,6 +6,7 @@ import type { Scores } from '@/domain/types'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
 import { useFun } from '@/store/fun'
+import { BirthDatePicker } from '../ui/BirthDatePicker'
 import { Button } from '../ui/Button'
 import { Card, Chip } from '../ui/Card'
 
@@ -24,11 +25,10 @@ const KIND = {
 function BirthForm({ initial, onDone }: { initial?: string; onDone?: () => void }) {
   const t = useT()
   const setBirth = useFun((s) => s.setBirth)
-  const [value, setValue] = useState(initial ?? '')
-  const today = new Date().toISOString().slice(0, 10)
+  const [value, setValue] = useState<string | undefined>(initial)
   return (
     <form
-      className="flex flex-wrap items-end gap-2"
+      className="max-w-md"
       onSubmit={(e) => {
         e.preventDefault()
         if (!value) return
@@ -36,26 +36,17 @@ function BirthForm({ initial, onDone }: { initial?: string; onDone?: () => void 
         onDone?.()
       }}
     >
-      <label className="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-        {t('วันเกิด', 'Date of birth')}
-        <input
-          type="date"
-          required
-          min="1930-01-01"
-          max={today}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600 dark:border-white/15 dark:bg-transparent dark:text-slate-100 dark:[color-scheme:dark]"
-        />
-      </label>
-      <Button type="submit" variant="primary" disabled={!value}>
-        {t('เทียบดู', 'Compare')}
-      </Button>
-      {onDone && (
-        <Button variant="ghost" onClick={onDone}>
-          {t('ยกเลิก', 'Cancel')}
+      <BirthDatePicker value={value} onChange={setValue} />
+      <div className="mt-3 flex gap-2">
+        <Button type="submit" variant="primary" disabled={!value}>
+          {t('เทียบดู', 'Compare')}
         </Button>
-      )}
+        {onDone && (
+          <Button variant="ghost" onClick={onDone}>
+            {t('ยกเลิก', 'Cancel')}
+          </Button>
+        )}
+      </div>
     </form>
   )
 }

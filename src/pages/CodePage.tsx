@@ -1,9 +1,12 @@
-import { ArrowLeft, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 import { useState } from 'react'
 import { AXIS_COLOR } from '@/components/charts/WorkfitCodeCard'
 import { Button } from '@/components/ui/Button'
 import { Card, Eyebrow } from '@/components/ui/Card'
-import { CODE_AXES, CODE_COUNT, CODE_GROUPS, CREWS, decodeCode, LEAN, VIBES, workfitCode, type CodeAxisDef, type CodeLetter, type CodeTribe } from '@/domain/code'
+import { CodeCharacter, tint } from '@/components/character/RoleCharacter'
+import { CHARACTER_GROUPS, CHARACTERS } from '@/domain/characters'
+import { Link } from 'react-router'
+import { CODE_AXES, CODE_COUNT, CODE_GROUPS, decodeCode, LEAN, workfitCode, type CodeAxisDef, type CodeLetter } from '@/domain/code'
 import { dimMeta } from '@/domain/dimensions'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
@@ -54,7 +57,7 @@ function Anatomy({ letters, faded }: { letters: string[]; faded?: boolean[] }) {
               }}
               className="block rounded-lg border border-slate-200/80 px-2 py-2 text-center hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-violet-600 dark:border-white/[0.08] dark:hover:bg-white/[0.04]"
             >
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {t('ตำแหน่ง', 'Slot')} {i + 1}
               </div>
               <div className="text-sm font-semibold" style={{ color: AXIS_COLOR[i] }}>
@@ -69,91 +72,50 @@ function Anatomy({ letters, faded }: { letters: string[]; faded?: boolean[] }) {
   )
 }
 
-const MBTI_BADGE = {
-  same: { th: 'เหมือน MBTI', en: 'Same as MBTI', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' },
-  near: { th: 'ใกล้ MBTI', en: 'Near MBTI', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300' },
-  new: { th: 'ใหม่จาก Workfit', en: 'New in Workfit', cls: 'bg-violet-50 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300' },
-} as const
-
-/** สาย × แก๊ง: 4 vibes (slots 1+2) × 4 crews (slots 5+7) = 16 groups people can say out loud. */
-function Tribes({ mine }: { mine?: { vibe: CodeTribe; crew: CodeTribe } }) {
+/** From letters to character: the 4 groups (letters 1–2) × 4 characters (letters 3–4). */
+function CharacterMap({ mine }: { mine?: string }) {
   const t = useT()
   return (
     <Card className="p-6 sm:p-8">
-      <Eyebrow>{t('สาย × แก๊ง', 'Vibe × Crew')}</Eyebrow>
-      <h2 className="mt-1 text-xl font-semibold tracking-tight">{t('16 กลุ่มที่พูดง่าย จำง่าย', '16 groups that are easy to say and remember')}</h2>
+      <Eyebrow>{t('จากตัวอักษรสู่ตัวละคร', 'From letters to character')}</Eyebrow>
+      <h2 className="mt-1 text-xl font-semibold tracking-tight">{t('4 สาย × 4 ตัวละคร = 16 แบบ', '4 groups × 4 characters = 16')}</h2>
       <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
         {t(
-          'สาย มาจากตัวอักษร 2 ตัวแรก (เหมือน 2 ตัวแรกของ MBTI) บอกว่าคุณทำงานด้วยพลังแบบไหน แก๊ง มาจากตำแหน่ง 5 และ 7 บอกว่าคุณอยู่กับคนในทีมแบบไทยอย่างไร',
-          'Your vibe comes from the first 2 letters (the same pair as MBTI) and says what kind of energy you bring. Your crew comes from slots 5 and 7 and says how you show up with people in a Thai team.',
+          'ตัวที่ 1–2 บอกสาย (สีของแถว) ตัวที่ 3–4 บอกตัวละครในสายนั้น: L/B = นำหรือหนุน, Q/C = ไวหรือรอบคอบ ตัวที่ 5–7 ไม่เปลี่ยนตัวละคร แต่บอกวิธีทำงานกับคนแบบไทย',
+          'Letters 1–2 give the group (row colour); letters 3–4 pick the character in it: L/B = lead or back, Q/C = quick or careful. Letters 5–7 don’t change the character; they show how you work with people, Thai-style.',
         )}
       </p>
-
-      {mine && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {[
-            { k: t('สายของคุณ', 'Your vibe'), x: mine.vibe },
-            { k: t('แก๊งของคุณ', 'Your crew'), x: mine.crew },
-          ].map(({ k, x }) => (
-            <div key={x.key} className="flex items-start gap-3 rounded-xl bg-violet-50 p-4 dark:bg-violet-500/10">
-              <span className="text-3xl leading-none" aria-hidden>
-                {x.emoji}
+      <div className="mt-5 space-y-3">
+        {CHARACTER_GROUPS.map((g) => (
+          <div key={g.key} className="rounded-2xl p-3" style={{ background: tint(g.color, 0.88) }}>
+            <div className="flex items-baseline gap-2 px-1">
+              <span className="font-semibold" style={{ color: g.color }}>
+                {g.key} · {t(g.plural)}
               </span>
-              <div>
-                <div className="text-xs text-violet-700 dark:text-violet-300">
-                  {k} · {x.key.split('').join(' + ')}
-                </div>
-                <div className="text-lg font-semibold">{t(x.name)}</div>
-                <p className="text-sm text-slate-600 dark:text-slate-300">{t(x.tagline)}</p>
-              </div>
+              <span className="text-xs text-slate-600">{t(g.letters)}</span>
             </div>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[34rem] border-separate border-spacing-1 text-sm">
-          <thead>
-            <tr>
-              <th className="w-28" />
-              {CREWS.map((c) => (
-                <th key={c.key} className="px-2 pb-1 text-left align-bottom text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span aria-hidden>{c.emoji}</span> {t(c.name)}
-                  <span className="block font-semibold tracking-widest text-slate-400 dark:text-slate-500">
-                    {c.key[0]}·{c.key[1]}
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {CHARACTERS.filter((c) => c.group === g.key).map((c) => (
+                <Link
+                  key={c.key}
+                  to={`/personas/${c.key}`}
+                  className={cn('flex items-center gap-2 rounded-xl bg-white p-2 transition active:scale-[0.98] dark:bg-[#131318]', mine === c.key && 'ring-2')}
+                  style={mine === c.key ? { ['--tw-ring-color' as string]: g.color } : undefined}
+                >
+                  <CodeCharacter code={c.key} size={40} />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold tracking-wide" style={{ color: g.color }}>
+                      {c.key}
+                      {mine === c.key && <span className="ml-1 font-medium">· {t('คุณ', 'you')}</span>}
+                    </span>
+                    <span className="block truncate text-sm font-medium">{t(c.name)}</span>
                   </span>
-                </th>
+                </Link>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {VIBES.map((v) => (
-              <tr key={v.key}>
-                <th className="pr-2 text-left align-middle text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span aria-hidden>{v.emoji}</span> {t(v.name)}
-                  <span className="block font-semibold tracking-widest text-slate-400 dark:text-slate-500">{v.key}</span>
-                </th>
-                {CREWS.map((c) => {
-                  const on = mine?.vibe.key === v.key && mine.crew.key === c.key
-                  return (
-                    <td
-                      key={c.key}
-                      className={cn(
-                        'rounded-lg px-2 py-2 font-mono text-xs tracking-wider',
-                        on ? 'bg-violet-700 font-semibold text-white dark:bg-violet-600' : 'bg-slate-50 text-slate-500 dark:bg-white/[0.04] dark:text-slate-400',
-                      )}
-                    >
-                      {v.key}··-{c.key[0]}·{c.key[1]}
-                      {on && <span className="ml-1 font-sans">← {t('คุณ', 'you')}</span>}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </div>
+          </div>
+        ))}
       </div>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t('· = ตัวอักษรไหนก็ได้ในตำแหน่งนั้น', '· = any letter in that slot')}</p>
     </Card>
   )
 }
@@ -170,7 +132,6 @@ function AxisSection({ axis, index, mine }: { axis: CodeAxisDef; index: number; 
           </div>
           <h2 className="mt-0.5 flex flex-wrap items-center gap-2 text-lg font-semibold">
             {t(axis.name)}
-            <span className={cn('rounded-md px-1.5 py-0.5 text-[11px] font-medium', MBTI_BADGE[axis.mbti.kind].cls)}>{t(MBTI_BADGE[axis.mbti.kind])}</span>
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-300">{t(axis.question)}</p>
         </div>
@@ -238,7 +199,6 @@ function AxisSection({ axis, index, mine }: { axis: CodeAxisDef; index: number; 
         <div>
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('ที่มาของแกนนี้', 'Where this axis comes from')}</div>
           <p className="mt-1.5 text-slate-600 dark:text-slate-300">{t(axis.origin)}</p>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">MBTI: {t(axis.mbti.note)}</p>
         </div>
       </div>
     </Card>
@@ -265,7 +225,7 @@ function Decoder() {
           placeholder="ENLQ-DRW"
           autoCapitalize="characters"
           spellCheck={false}
-          className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 font-semibold tracking-widest text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-600 dark:border-white/15 dark:bg-transparent dark:text-slate-100"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base font-semibold sm:h-10 sm:rounded-lg tracking-widest text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-600 dark:border-white/15 dark:bg-transparent dark:text-slate-100"
         />
       </label>
       {decoded ? (
@@ -325,15 +285,15 @@ export function CodePage() {
 
       <Anatomy letters={wc ? wc.letters.map((l) => l.shown) : sample} faded={wc?.letters.map((l) => !l.clear)} />
 
-      <Tribes mine={wc ? { vibe: wc.vibe, crew: wc.crew } : undefined} />
+      <CharacterMap mine={wc?.code.slice(0, 4)} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {[
           {
             h: t('ตัวอักษรแบบลูกผสม', 'Hybrid letters'),
             p: t(
-              'ใช้ตัวอักษรของ MBTI เฉพาะที่ความหมายเหมือนกันจริง (E/I, N/S) ตัวอื่นเป็นตัวใหม่ทั้งหมด จึงไม่มีใครอ่านโค้ด Workfit ผิดเป็น MBTI H และ M คือลายเซ็นของคนไทย: รักษาน้ำใจ และ ไม่เป็นไร',
-              'MBTI letters only where the meaning really is the same (E/I, N/S); every other letter is new, so nobody misreads a Workfit Code as MBTI. H and M are the Thai signatures: harmony and mai pen rai.',
+              'E/I และ N/S ใช้ตัวอักษรที่คนคุ้นเคย (เปิดตัว/เก็บตัว, มองภาพใหม่/ยึดของจริง) ตัวอื่นเป็นของ Workfit เอง ทุกตัววัดจากคำถามของ Workfit ไม่ได้แปลงมาจากหรือเท่ากับแบบทดสอบอื่น H และ M คือลายเซ็นของคนไทย: รักษาน้ำใจ และ ไม่เป็นไร',
+              'E/I and N/S use familiar letters (extravert/introvert, intuition/sensing); the rest are Workfit’s own. Every letter is measured by Workfit’s questions and is not converted from, or equal to, any other test. H and M are the Thai signatures: harmony and mai pen rai.',
             ),
           },
           {
@@ -376,6 +336,16 @@ export function CodePage() {
       ))}
 
       <Decoder />
+
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold">{t('สมุดรหัสทั้ง 128 แบบ', 'The code book: all 128 codes')}</div>
+          <p className="text-sm text-slate-600 dark:text-slate-300">{t('เปิดดูความหมายของทุกรหัส ค้นหาและกรองทีละตัวอักษร', 'Look up any code, search and filter letter by letter')}</p>
+        </div>
+        <Button variant="primary" to="/codes" iconRight={ArrowRight}>
+          {t('เปิดสมุดรหัส', 'Open the code book')}
+        </Button>
+      </Card>
 
       {!wc && (
         <div className="flex justify-center">

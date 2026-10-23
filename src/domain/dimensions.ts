@@ -19,8 +19,8 @@ export const LAYERS: { id: Layer; th: string; en: string; blurb: T }[] = [
 ]
 
 export const DIMENSIONS: DimensionMeta[] = [
-  { code: 'H', layer: 'core', th: 'ซื่อตรง-ถ่อมตน', en: 'Honesty–humility', low: tt('มองหาประโยชน์ส่วนตัว', 'Looks out for own gain'), high: tt('ซื่อตรง ไม่เอาเปรียบ', 'Sincere, fair, modest') },
-  { code: 'E', layer: 'core', th: 'อารมณ์มั่นคง', en: 'Emotional stability', low: tt('อ่อนไหว กังวลง่าย', 'Sensitive, worries easily'), high: tt('ใจนิ่ง รับแรงกดดันได้', 'Calm under pressure') },
+  { code: 'H', layer: 'core', th: 'ถ่อมตน-ไม่เน้นสถานะ', en: 'Humility', low: tt('กล้าต่อรองเพื่อตัวเอง ให้ค่ากับสถานะ', 'Negotiates for self, values status'), high: tt('ถ่อมตน ไม่เน้นสถานะ', 'Modest, not status-driven') },
+  { code: 'E', layer: 'core', th: 'ความนิ่งเมื่อกดดัน', en: 'Calm under pressure', low: tt('รู้สึกถึงแรงกดดันชัด ไวต่อความเสี่ยง', 'Feels pressure keenly, alert to risk'), high: tt('ใจนิ่งเมื่อกดดัน', 'Stays calm under pressure') },
   { code: 'X', layer: 'core', th: 'การเข้าสังคม', en: 'Extraversion', low: tt('เงียบ ชอบโฟกัส', 'Quiet, focused'), high: tt('มีพลังเมื่ออยู่กับคน', 'Energised by people') },
   { code: 'A', layer: 'core', th: 'ประนีประนอม', en: 'Agreeableness', low: tt('ตรง วิจารณ์แรง', 'Blunt, critical'), high: tt('ให้อภัย ยืดหยุ่นกับคน', 'Forgiving, easy to work with') },
   { code: 'C', layer: 'core', th: 'วินัยและรับผิดชอบ', en: 'Conscientiousness', low: tt('ทำตามจังหวะตัวเอง', 'Works at own rhythm'), high: tt('มีแผน ส่งงานตรงเวลา', 'Planned, delivers on time') },

@@ -42,6 +42,9 @@ html {
   /* No pull-to-refresh or rubber-band bounce: a fast swipe down mid-test must not reload the page. */
   overscroll-behavior-y: none;
   scroll-padding-top: 5rem;
+  /* Reserve the scrollbar's space on every page, so short and long pages are the same width and the
+     centred header menu never jumps when you switch pages. */
+  scrollbar-gutter: stable;
 }
 
 /* UI.md §24: compact desktop via a 14px root, phones keep the browser default (16px inputs, no iOS zoom). */
@@ -52,6 +55,9 @@ html {
 body {
   margin: 0;
   overscroll-behavior-y: none;
+  /* Comfortable reading line-height for Thai (tone marks above, vowels below). */
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -94,4 +100,22 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Touch devices: no sticky hover tints after a tap, no long-press callout on UI chrome. */
+@media (hover: none) {
+  button,
+  [role='radio'],
+  [role='switch'] {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* Hide scrollbars on horizontal chip rows while keeping them scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

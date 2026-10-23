@@ -1,32 +1,34 @@
 import {
-  AlertTriangle, ArrowRight, Award, BatteryCharging, Briefcase, Building2, Check, Compass, Copy, Globe2, HeartHandshake, MessageCircle, Play,
-  RotateCcw, Sparkles, ThumbsDown, ThumbsUp, Type, UserRoundCog, UsersRound, Zap,
+  AlertTriangle, ArrowRight, ChevronRight, Award, BatteryCharging, Compass, Globe2, HeartHandshake, MessageCircle, Play, RotateCcw, Sparkles, UsersRound, Zap,
 } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { DeepResults } from '@/components/charts/DeepResults'
 import { DimensionBars } from '@/components/charts/DimensionBars'
 import { HoroscopeCard } from '@/components/charts/Horoscope'
+import { CharacterHero, CharacterSummaryCard, LifeOutsideWorkCard } from '@/components/charts/CharacterResults'
+import { ContextCard, ExploreCard, ManagerTeamCard, MyDataCard, RoleScoresCard, SectionTitle } from '@/components/charts/RoleResults'
 import { SameTypeCard } from '@/components/charts/SameType'
 import { SayDoMeter } from '@/components/charts/SayDoMeter'
-import { EnergyMeter, FourLetter, StrengthList, WorkStyleGrid } from '@/components/charts/StyleFrames'
-import { CodeLetters, WorkfitCodeCard } from '@/components/charts/WorkfitCodeCard'
+import { EnergyMeter, StrengthList, WorkStyleGrid } from '@/components/charts/StyleFrames'
+import { WorkfitCodeCard } from '@/components/charts/WorkfitCodeCard'
 import { WorkfitIdCard } from '@/components/charts/WorkfitIdCard'
 import { Character } from '@/components/character/Character'
-import { CLARITY, MODIFIER_ICONS, PersonaAvatar } from '@/components/character/PersonaAvatar'
+import { CodeCharacter } from '@/components/character/RoleCharacter'
+import { workfitCode } from '@/domain/code'
 import { Button } from '@/components/ui/Button'
-import { Card, Chip, Eyebrow, Meter } from '@/components/ui/Card'
+import { Card, Chip } from '@/components/ui/Card'
+import { Segmented } from '@/components/ui/Segmented'
+import { StickyBar } from '@/components/ui/StickyBar'
 import { cultureBridge } from '@/domain/culture'
 import { deepProfile } from '@/domain/deep'
 import { closest, DEMO_STAFF } from '@/domain/demo'
-import { ENVIRONMENTS, JOB_LINES, managerFit, rankRoles, type FitResult } from '@/domain/fit'
 import { personalSignals, sayDo } from '@/domain/insights'
 import { CONTEXTS } from '@/domain/items'
-import { familyById, modifierById, personaById, VARIANTS } from '@/domain/personas'
+import { characterOf } from '@/domain/characters'
 import type { Profile } from '@/domain/types'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
-import { usePeerSummary, useProfile, useProgress } from '@/lib/useProfile'
+import { usePeerSummary, useProfile, useProgress, useRoleResult } from '@/lib/useProfile'
 import { useAssessment } from '@/store/assessment'
 
 export function MePage() {
@@ -41,12 +43,12 @@ function Empty() {
   const progress = useProgress()
   return (
     <div className="mx-auto grid max-w-xl place-items-center py-16 text-center">
-      <Character animal="owl" variant="SC" color="#F59E0B" soft="#FEF3C7" size={140} className="animate-float" />
+      <Character animal="owl" color="#568ba2" soft="#d5e2e8" size={140} />
       <h1 className="mt-6 text-2xl font-semibold">{t('ยังไม่มีผลของคุณ', 'No results yet')}</h1>
       <p className="mt-2 text-slate-600 dark:text-slate-300">
         {progress.done > 0
           ? t(`ทำไปแล้ว ${progress.pct}% ทำต่ออีกนิดเพื่อดูผล`, `${progress.pct}% done. Finish to see your results.`)
-          : t('ทำแบบทดสอบประมาณ 20 นาทีเพื่อดูตัวละครและความเหมาะกับงานของคุณ', 'Take the 20-minute test to meet your character and see where you fit.')}
+          : t('เลือกได้ 3 ระดับ เร็ว 5 นาที มาตรฐาน 15 นาที หรือมืออาชีพ 30 นาที แล้วพบตัวละครของคุณ 1 ใน 16', 'Pick a level: Quick 5 min, Standard 15 min or Professional 30 min, then meet your character, 1 of 16.')}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Button variant="glow" size="lg" to="/test" iconRight={ArrowRight}>
@@ -78,27 +80,28 @@ function Result({ profile }: { profile: Profile }) {
   const deep = useAssessment((s) => s.deep)
   const facets = deepProfile(deep).facets
   const navigate = useNavigate()
-  const [copied, setCopied] = useState(false)
 
-  const persona = personaById(profile.persona.personaId)
-  const fam = familyById(persona.family)
-  const variant = VARIANTS.find((v) => v.id === persona.variant)
-  const blend = profile.persona.blend ? familyById(profile.persona.blend) : null
-  const roles = rankRoles(profile.scores)
-  const envs = rankRoles(profile.scores, ENVIRONMENTS)
-  const managers = managerFit(profile.scores)
+  const roleResult = useRoleResult()
   const observed = Boolean(peers?.delivery !== undefined)
   const sd = sayDo(profile.scores, peers?.delivery)
   const signals = personalSignals(profile.scores)
   const bridge = cultureBridge(profile.scores, background)
   const twins = closest(profile.scores, DEMO_STAFF, 4)
-
-  const mods = profile.persona.modifiers.map((m) => t(modifierById(m).th, modifierById(m).en)).join(', ')
-  const best = roles.slice(0, 3).map((r) => `${t(r.th, r.en)} ${r.fit}%`).join(', ')
-  const line = `${t(fam.animalTh, fam.animalEn)} ${t(persona.th, persona.en)} · ${t(fam.th, fam.en)}${mods ? ` · ${mods}` : ''} · ${t('เหมาะกับ', 'Best fit')}: ${best}`
+  const [tab, setTabState] = useMeTab()
+  const setTab = (x: MeTab) => {
+    setTabState(x)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
 
   return (
-    <div className="space-y-5">
+    <div>
+      <StickyBar className="-mt-8 mb-5 lg:-mt-10">
+        <Segmented value={tab} onChange={setTab} options={TABS.map((x) => ({ id: x.id, label: t(x.label) }))} />
+      </StickyBar>
+
+      <div key={tab} className="animate-rise space-y-5">
+        {tab === 'summary' && (
+          <>
       {!profile.quality.ok && (
         <Card className="flex items-start gap-3 border-amber-300/60 bg-amber-50/80 dark:border-amber-400/30 dark:bg-amber-400/10">
           <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={20} />
@@ -114,80 +117,34 @@ function Result({ profile }: { profile: Profile }) {
           </div>
         </Card>
       )}
-
-      {/* Hero */}
-      <Card className="overflow-hidden p-6 sm:p-8">
-        <div className="relative grid items-center gap-8 md:grid-cols-[auto_1fr]">
-          <PersonaAvatar result={profile.persona} size={220} float className="mx-auto" />
-          <div>
-            <Eyebrow>{name ? t(`ผลของ${name.startsWith('คุณ') ? name : `คุณ${name}`}`, `${name}'s profile`) : t('ผลของคุณ', 'Your profile')}</Eyebrow>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {t(persona.th, persona.en)} <span className="text-slate-400 dark:text-slate-500">· {t(persona.en, persona.th)}</span>
-            </h1>
-            <div className="mt-2 flex items-center gap-3">
-              <CodeLetters scores={profile.scores} size="sm" />
-              <span className="text-sm text-slate-500 dark:text-slate-400">Workfit Code</span>
-            </div>
-            <p className="mt-3 text-lg text-slate-600 dark:text-slate-300">{t(persona.tagline)}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Chip color={fam.color}>
-                {t(fam.animalTh, fam.animalEn)} · {t(fam.th, fam.en)}
-              </Chip>
-              {variant && <Chip>{t(variant.th, variant.en)}</Chip>}
-              <Chip>
-                {t('โปรไฟล์', 'Profile ')}
-                {t(CLARITY[profile.persona.clarity])}
-              </Chip>
-              {blend && <Chip color={blend.color}>{t(`มีมุม${blend.th}`, `with a ${blend.en} side`)}</Chip>}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {profile.persona.modifiers.map((id) => {
-                const m = modifierById(id)
-                const Icon = MODIFIER_ICONS[m.icon]
-                return (
-                  <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white dark:bg-white dark:text-slate-900">
-                    <Icon size={13} /> {t(m.th, m.en)}
-                  </span>
-                )
-              })}
-            </div>
-            <div className="mt-5 flex items-start gap-2 rounded-2xl bg-slate-900/[0.04] p-3 dark:bg-white/[0.05]">
-              <Zap size={16} className="mt-0.5 shrink-0" style={{ color: fam.color }} />
-              <p className="text-sm">
-                <span className="font-semibold">{t('พลังพิเศษ:', 'Superpower:')}</span> {t(persona.superpower)}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="relative mt-6 flex flex-col gap-3 rounded-2xl border border-dashed border-slate-300 p-4 sm:flex-row sm:items-center dark:border-white/15">
-          <p className="flex-1 text-sm leading-relaxed">
-            <span className="font-semibold">{t('สรุปบรรทัดเดียว · ', 'In one line · ')}</span>
-            {line}
-          </p>
-          <Button
-            size="sm"
-            icon={copied ? Check : Copy}
-            onClick={() => {
-              void navigator.clipboard?.writeText(line)
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 1600)
-            }}
-          >
-            {copied ? t('คัดลอกแล้ว', 'Copied') : t('คัดลอก', 'Copy')}
-          </Button>
-        </div>
-      </Card>
-
-      <WorkfitCodeCard scores={profile.scores} />
-
+      <CharacterHero scores={profile.scores} name={name} roles={roleResult?.classification ?? null} />
+      <CharacterSummaryCard scores={profile.scores} />
       <WorkfitIdCard scores={profile.scores} />
+            <NextSteps go={setTab} hasRoles={Boolean(roleResult)} />
+          </>
+        )}
 
-      <SameTypeCard scores={profile.scores} />
+        {tab === 'roles' && (
+          <>
+            {roleResult ? (
+              <>
+      {roleResult && (
+        <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
+          <RoleScoresCard result={roleResult} />
+          <ExploreCard result={roleResult} />
+        </div>
+      )}
+              </>
+            ) : (
+      <ProRolesCta />
+            )}
+          </>
+        )}
 
-      <HoroscopeCard scores={profile.scores} />
-
-      {/* Familiar frames, rebuilt as spectrums on measured scores */}
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {tab === 'style' && (
+          <>
+      <WorkfitCodeCard scores={profile.scores} />
+      <div className="grid gap-5 md:grid-cols-3">
         <Card>
           <SectionTitle icon={BatteryCharging} title={t('อินโทร / เอ็กซ์โทร', 'Introvert / Extrovert')} />
           <div className="mt-4">
@@ -201,21 +158,54 @@ function Result({ profile }: { profile: Profile }) {
           </div>
         </Card>
         <Card>
-          <SectionTitle icon={Type} title={t('รหัสบุคลิก', 'Personality code')} />
-          <div className="mt-4">
-            <FourLetter scores={profile.scores} />
-          </div>
-        </Card>
-        <Card>
-          <SectionTitle icon={Award} title={t('Top 5 จุดแข็ง', 'Top 5 strengths')} />
+          <SectionTitle icon={Award} title={t('จุดเด่นจากคำตอบ', 'Standouts in your answers')} note={t('ไม่ใช่หลักฐานทักษะ', 'not skill evidence')} />
           <div className="mt-4">
             <StrengthList scores={profile.scores} />
           </div>
         </Card>
       </div>
-
+            <div className="grid gap-5 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <SectionTitle icon={Sparkles} title={Object.keys(facets).length ? t('18 มิติ + ด้านย่อย', '18 dimensions + facets') : t('18 มิติของคุณ', 'Your 18 dimensions')} note={peers?.n ? t('◆ = คนรอบตัว', '◆ = peers') : t('คะแนนกลาง = 50', 'middle = 50')} />
+          <div className="mt-5">
+            <DimensionBars scores={profile.scores} compare={peers?.n ? peers.others : undefined} facets={Object.keys(facets).length ? facets : undefined} />
+          </div>
+        </Card>
+        <div>
+          <Card>
+            <SectionTitle icon={Zap} title={t('เมื่อสถานการณ์เปลี่ยน', 'When the situation changes')} />
+            <div className="mt-4 space-y-3">
+              {profile.shifts.map((s) => {
+                const c = CONTEXTS.find((x) => x.id === s.context)
+                return (
+                  <div key={s.context}>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c ? t(c.th, c.en) : ''}</div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {s.likely.map((b, i) => (
+                        <Chip key={`${b.en}-${i}`} color="#7c3aed">
+                          {t(b)}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        </div>
+            </div>
+      <SameTypeCard scores={profile.scores} />
       <DeepResults />
+          </>
+        )}
 
+        {tab === 'others' && (
+          <>
+            <LifeOutsideWorkCard scores={profile.scores} />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ContextCard scores={profile.scores} />
+        <ManagerTeamCard result={roleResult} />
+      </div>
       {/* Person-centric: how others see you + culture bridge */}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
@@ -297,71 +287,13 @@ function Result({ profile }: { profile: Profile }) {
           )}
         </Card>
       </div>
-
-      {/* Bento */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <SectionTitle icon={Briefcase} title={t('สายงานที่เหมาะ', 'Best-fit job areas')} note={t(`${JOB_LINES.length} สายงานที่พบบ่อย`, `${JOB_LINES.length} common job areas`)} />
-          <div className="mt-4 space-y-3">
-            {roles.slice(0, 5).map((r, i) => (
-              <FitRow key={r.id} r={r} rank={i + 1} color={fam.color} />
-            ))}
-          </div>
-          <details className="group mt-3">
-            <summary className="cursor-pointer list-none text-sm font-medium text-violet-600 dark:text-violet-300">
-              <span className="group-open:hidden">{t(`ดูทั้งหมด ${roles.length} สายงาน`, `Show all ${roles.length} job areas`)}</span>
-              <span className="hidden group-open:inline">{t('ซ่อน', 'Hide')}</span>
-            </summary>
-            <div className="mt-3 space-y-3">
-              {roles.slice(5).map((r, i) => (
-                <FitRow key={r.id} r={r} rank={i + 6} color={fam.color} />
-              ))}
-            </div>
-          </details>
-        </Card>
-
+            <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <SectionTitle icon={MessageCircle} title={t('พูด vs ทำ', 'Say vs do')} note={observed ? t('จากคนรอบตัว', 'peer-rated') : t('จะแม่นขึ้นเมื่อมีคนรอบตัวประเมิน', 'more accurate with peer ratings')} />
           <div className="mt-4">
             <SayDoMeter value={sd} observed={observed} />
           </div>
         </Card>
-
-        <Card>
-          <SectionTitle icon={Building2} title={t('สภาพแวดล้อมที่เหมาะ', 'Best-fit environments')} />
-          <div className="mt-4 space-y-3">
-            {envs.map((e) => (
-              <div key={e.id}>
-                <div className="flex justify-between text-sm">
-                  <span>{t(e.th, e.en)}</span>
-                  <span className="tabular font-semibold">{e.fit}%</span>
-                </div>
-                <Meter value={e.fit} color={fam.color} className="mt-1.5" />
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle icon={UserRoundCog} title={t('หัวหน้าที่เหมาะ', 'Manager fit')} />
-          <div className="mt-4 space-y-3">
-            {managers.map((m) => (
-              <div key={m.style} className="rounded-2xl bg-slate-900/[0.03] p-3 dark:bg-white/[0.04]">
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="font-medium">{t(m.name)}</span>
-                  <span className={cn('tabular font-semibold', m.fit >= 70 ? 'text-emerald-600 dark:text-emerald-400' : m.fit < 55 ? 'text-orange-600 dark:text-orange-400' : '')}>{m.fit}%</span>
-                </div>
-                {m.notes.slice(0, 2).map((n) => (
-                  <p key={n.text.en} className="mt-1.5 flex gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-                    {n.good ? <ThumbsUp size={12} className="mt-0.5 shrink-0 text-emerald-500" /> : <ThumbsDown size={12} className="mt-0.5 shrink-0 text-orange-500" />}
-                    {t(n.text)}
-                  </p>
-                ))}
-              </div>
-            ))}
-          </div>
-        </Card>
-
         <Card>
           <SectionTitle icon={HeartHandshake} title={t('สิ่งที่ควรรู้', 'Worth knowing')} note={t('สำหรับคุณและหัวหน้า', 'for you and your manager')} />
           {signals.length === 0 ? (
@@ -378,62 +310,18 @@ function Result({ profile }: { profile: Profile }) {
             </div>
           )}
         </Card>
-
-        <Card className="lg:col-span-2">
-          <SectionTitle icon={Sparkles} title={Object.keys(facets).length ? t('18 มิติ + ด้านย่อย', '18 dimensions + facets') : t('18 มิติของคุณ', 'Your 18 dimensions')} note={peers?.n ? t('◆ = คนรอบตัว', '◆ = peers') : t('คะแนนกลาง = 50', 'middle = 50')} />
-          <div className="mt-5">
-            <DimensionBars scores={profile.scores} compare={peers?.n ? peers.others : undefined} facets={Object.keys(facets).length ? facets : undefined} />
-          </div>
-        </Card>
-
-        <div className="space-y-5">
-          <Card>
-            <SectionTitle icon={Zap} title={t('เมื่อสถานการณ์เปลี่ยน', 'When the situation changes')} />
-            <div className="mt-4 space-y-3">
-              {profile.shifts.map((s) => {
-                const c = CONTEXTS.find((x) => x.id === s.context)
-                return (
-                  <div key={s.context}>
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{c ? t(c.th, c.en) : ''}</div>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {s.likely.map((b, i) => (
-                        <Chip key={`${b.en}-${i}`} color="#7c3aed">
-                          {t(b)}
-                        </Chip>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
             </div>
-          </Card>
-          <Card>
-            <SectionTitle icon={UsersRound} title={t(`ในฐานะ${fam.th}`, `As a ${fam.en.replace(/s$/, '')}`)} />
-            <div className="mt-3 space-y-3 text-sm">
-              <ListBlock title={t('จุดแข็ง', 'Strengths')} items={fam.strengths.map((x) => t(x))} good />
-              <ListBlock title={t('ระวัง', 'Watch out for')} items={fam.watchouts.map((x) => t(x))} />
-              <p>
-                <span className="font-semibold">{t('ให้ feedback อย่างไร:', 'How to give feedback:')}</span> {t(fam.feedbackTip)}
-              </p>
-              <p>
-                <span className="font-semibold">{t('เมื่อเครียด:', 'Under stress:')}</span> {t(fam.underStress)}
-              </p>
-            </div>
-          </Card>
-        </div>
-
-        <Card className="lg:col-span-3">
-          <SectionTitle icon={UsersRound} title={t('คนที่โปรไฟล์ใกล้คุณที่สุด', 'People with the closest profile')} note={t('ข้อมูลตัวอย่าง', 'sample data')} />
+        <Card>
+          <SectionTitle icon={UsersRound} title={t('คนที่สไตล์การทำงานใกล้คุณที่สุด', 'People with the closest work style')} note={t('ข้อมูลตัวอย่าง', 'sample data')} />
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {twins.map(({ person, sim }) => {
-              const pp = personaById(person.persona.personaId)
               return (
                 <div key={person.id} className="flex items-center gap-3 rounded-2xl bg-slate-900/[0.03] p-3 dark:bg-white/[0.04]">
-                  <PersonaAvatar result={person.persona} size={52} showBadges={false} />
+                  <CodeCharacter code={workfitCode(person.scores).code} size={52} />
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{person.name}</div>
                     <div className="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {t(pp.th, pp.en)} · {t(person.role)}
+                      {t(characterOf(person.scores).name)} · {t(person.role)}
                     </div>
                     <div className="tabular mt-0.5 text-xs font-medium text-violet-600 dark:text-violet-300">{t(`เหมือน ${sim}%`, `${sim}% similar`)}</div>
                   </div>
@@ -442,11 +330,16 @@ function Result({ profile }: { profile: Profile }) {
             })}
           </div>
         </Card>
-      </div>
+          </>
+        )}
 
+        {tab === 'data' && (
+          <>
+      <MyDataCard result={roleResult} scores={profile.scores} />
+      <HoroscopeCard scores={profile.scores} />
       <div className="flex flex-wrap justify-center gap-3 pt-4">
-        <Button icon={Sparkles} to={`/personas/${persona.id}`}>
-          {t('อ่าน persona ของฉัน', 'Read about my persona')}
+        <Button icon={Sparkles} to={roleResult?.classification.primary ? `/personas/${roleResult.classification.primary}` : '/personas'}>
+          {t('อ่านเรื่องตัวละครของฉัน', 'Read about my character')}
         </Button>
         <Button
           icon={RotateCcw}
@@ -461,72 +354,89 @@ function Result({ profile }: { profile: Profile }) {
           {t('สุ่มผลตัวอย่างใหม่', 'New random sample')}
         </Button>
       </div>
-    </div>
-  )
-}
-
-function SectionTitle({ icon: Icon, title, note }: { icon: typeof Briefcase; title: string; note?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-          <Icon size={16} />
-        </span>
-        <h2 className="text-base font-semibold">{title}</h2>
+          </>
+        )}
       </div>
-      {note && <span className="text-right text-xs text-slate-500 dark:text-slate-400">{note}</span>}
     </div>
   )
 }
 
-function FitRow({ r, rank, color }: { r: FitResult; rank: number; color: string }) {
+type MeTab = 'summary' | 'roles' | 'style' | 'others' | 'data'
+
+const TABS: { id: MeTab; label: { th: string; en: string } }[] = [
+  { id: 'summary', label: { th: 'สรุป', en: 'Summary' } },
+  { id: 'roles', label: { th: 'บทบาท', en: 'Roles' } },
+  { id: 'style', label: { th: 'สไตล์', en: 'Style' } },
+  { id: 'others', label: { th: 'กับคนอื่น', en: 'Others' } },
+  { id: 'data', label: { th: 'ข้อมูล', en: 'Data' } },
+]
+
+/** Tab lives in ?tab= so links and Back work; old #deep / #context links open the right tab. */
+function useMeTab(): [MeTab, (t: MeTab) => void] {
+  const [params, setParams] = useSearchParams()
+  const { hash } = useLocation()
+  const fromHash: MeTab | null = hash === '#deep' ? 'style' : hash === '#context' ? 'others' : null
+  const raw = params.get('tab') as MeTab | null
+  const tab = raw && TABS.some((x) => x.id === raw) ? raw : (fromHash ?? 'summary')
+  return [tab, (t) => setParams(t === 'summary' ? {} : { tab: t }, { replace: true })]
+}
+
+/** Short guide at the end of the summary so people know where to go next. */
+function NextSteps({ go, hasRoles }: { go: (t: MeTab) => void; hasRoles: boolean }) {
   const t = useT()
-  const strong = r.reasons.filter((x) => x.kind === 'strong').slice(0, 2)
-  const watch = r.reasons.filter((x) => x.kind === 'watch').slice(0, 1)
-  const examples = JOB_LINES.find((j) => j.id === r.id)?.examples
+  const items: { tab: MeTab; title: string; sub: string }[] = [
+    { tab: 'roles', title: t('ดูคะแนน 12 บทบาท', 'See your 12 role scores'), sub: t('และงานที่น่าสำรวจ', 'and work worth exploring') },
+    { tab: 'style', title: t('สไตล์การทำงานของคุณ', 'Your work style'), sub: t('Workfit Code และ 18 มิติ', 'Workfit Code and 18 dimensions') },
+    { tab: 'others', title: t('ทำงานกับคนอื่น', 'Working with others'), sub: t('บริบทที่ต้องการ หัวหน้า ทีม และมุมมองคนรอบตัว', 'Your context, manager, team and peer view') },
+  ]
   return (
-    <div className="rounded-2xl bg-slate-900/[0.03] p-3 dark:bg-white/[0.04]">
-      <div className="flex items-center gap-3">
-        <span className="tabular grid size-7 shrink-0 place-items-center rounded-lg bg-white text-xs font-bold shadow-sm dark:bg-white/10">{rank}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{t(r.th, r.en)}</span>
-              {examples && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{t(examples)}</span>}
-            </span>
-            <span className="tabular font-display text-lg font-bold">{r.fit}%</span>
-          </div>
-          <Meter value={r.fit} color={color} className="mt-1" />
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-10 text-xs text-slate-600 dark:text-slate-300">
-        {strong.map((s) => (
-          <span key={s.dim} className="flex items-center gap-1">
-            <ThumbsUp size={11} className="text-emerald-500" /> {t(s.label)} {s.score}
-          </span>
-        ))}
-        {watch.map((s) => (
-          <span key={s.dim} className="flex items-center gap-1">
-            <AlertTriangle size={11} className="text-orange-500" /> {t(s.label)} {s.score}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ListBlock({ title, items, good }: { title: string; items: string[]; good?: boolean }) {
-  return (
-    <div>
-      <div className="font-semibold">{title}</div>
-      <ul className="mt-1 space-y-1">
-        {items.map((i) => (
-          <li key={i} className="flex gap-2 text-slate-600 dark:text-slate-300">
-            <span className={cn('mt-2 size-1.5 shrink-0 rounded-full', good ? 'bg-emerald-500' : 'bg-orange-500')} />
-            {i}
+    <Card className="p-0">
+      <ul className="divide-y divide-slate-200/80 dark:divide-white/[0.08]">
+        {items.filter((x) => hasRoles || x.tab !== 'roles').map((x) => (
+          <li key={x.tab}>
+            <button
+              type="button"
+              onClick={() => go(x.tab)}
+              className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 dark:hover:bg-white/[0.03] dark:active:bg-white/[0.06]"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{x.title}</span>
+                <span className="block text-sm text-slate-500 dark:text-slate-400">{x.sub}</span>
+              </span>
+              <ChevronRight size={18} className="shrink-0 text-slate-400" />
+            </button>
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
+  )
+}
+
+/** Roles tab before the Professional level: what the 48 role items add, one tap to continue. */
+function ProRolesCta() {
+  const t = useT()
+  const navigate = useNavigate()
+  const setLevel = useAssessment((s) => s.setLevel)
+  return (
+    <Card className="text-center">
+      <h2 className="text-lg font-semibold">{t('งานที่คุณอยากทำมากขึ้น', 'Work you want more of')}</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
+        {t(
+          'ระดับมืออาชีพเพิ่ม 48 ข้อเรื่องบทบาทที่คุณอยากรับ แล้วบอก 12 บทบาท งานที่น่าสำรวจ และทักษะที่ควรตรวจ คำตอบเดิมยังอยู่',
+          'The Professional level adds 48 items on the roles you want, then shows 12 role interests, work worth exploring and skills to check. Your answers carry over.',
+        )}
+      </p>
+      <Button
+        className="mt-4"
+        variant="primary"
+        iconRight={ArrowRight}
+        onClick={() => {
+          setLevel('pro')
+          navigate('/test')
+        }}
+      >
+        {t('ทำต่อระดับมืออาชีพ (~15 นาที)', 'Continue to Professional (~15 min)')}
+      </Button>
+    </Card>
   )
 }

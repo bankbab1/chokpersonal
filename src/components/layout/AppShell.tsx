@@ -1,4 +1,4 @@
-import {
+import { BookOpen,
   ChevronDown,
   ChevronRight,
   Ellipsis,
@@ -60,8 +60,8 @@ const NAV: NavItem[] = [
   },
   {
     to: '/personas',
-    label: { th: '24 Persona', en: '24 Personas' },
-    short: { th: 'Persona', en: 'Types' },
+    label: { th: 'ตัวละคร', en: 'Characters' },
+    short: { th: 'ตัวละคร', en: 'Characters' },
     icon: Sparkles,
   },
 ]
@@ -226,9 +226,12 @@ function OrgMenu() {
 /** Phone bar keeps the four most-used places; everything else lives behind "More". */
 const BAR_PATHS = ['/', '/test', '/me', '/personas']
 const BAR = NAV.filter((n) => BAR_PATHS.includes(n.to))
-const MORE = NAV.filter((n) => !BAR_PATHS.includes(n.to))
+const MORE: NavItem[] = [
+  ...NAV.filter((n) => !BAR_PATHS.includes(n.to)),
+  { to: '/codes', label: { th: 'สมุดรหัส 128 แบบ', en: 'Code book (all 128)' }, icon: BookOpen },
+]
 
-const BAR_ITEM = 'flex min-w-0 flex-1 select-none flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-medium transition-colors'
+const BAR_ITEM = 'flex min-w-0 flex-1 select-none flex-col items-center gap-0.5 rounded-lg py-1.5 text-xs font-medium transition-colors'
 
 function MoreRow({ to, label, icon: Icon, blurb }: NavItem & { blurb?: T }) {
   const t = useT()
@@ -259,6 +262,8 @@ function PhoneBar() {
   const [open, setOpen] = useState(false)
   useEffect(() => setOpen(false), [pathname])
   const moreActive = [...MORE, ...ORG_NAV, { to: '/org' }].some((n) => pathname.startsWith(n.to))
+  // Focused flows (answering questions) hide the tab bar, like a full-screen iOS flow; they show their own action bar.
+  if (/^\/(test|rate\/|deep\/.+)/.test(pathname)) return null
   return (
     <>
       <nav
@@ -329,8 +334,8 @@ export function AppShell() {
     <ThemeContext.Provider value={theme}>
       <div data-theme={theme} className="relative min-h-dvh bg-[#fafafa] text-slate-900 dark:bg-[#0c0c10] dark:text-slate-100">
         <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white backdrop-blur dark:border-white/[0.08] dark:bg-[#0c0c10]/90">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-            <NavLink to="/" className={cn('rounded-lg', NAV_FOCUS_RING)} aria-label={t('Workfit หน้าแรก', 'Workfit home')}>
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+            <NavLink to="/" className={cn('justify-self-start rounded-lg', NAV_FOCUS_RING)} aria-label={t('Workfit หน้าแรก', 'Workfit home')}>
               <Logo />
             </NavLink>
             <nav className="hidden items-center gap-0.5 lg:flex" aria-label={t('เมนูหลัก', 'Main menu')}>
@@ -354,7 +359,7 @@ export function AppShell() {
               ))}
               <OrgMenu />
             </nav>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 justify-self-end">
               <LangSwitch />
               <ThemeSwitch theme={theme} onToggle={toggle} />
             </div>

@@ -4,7 +4,10 @@ import { personalSignals, sayDo } from './insights'
 import { FORCED_BLOCKS, LIKERT_ITEMS, LIKERT_SEQUENCE, SCENARIOS, STATEMENTS } from './items'
 import { FAMILIES, PERSONAS } from './personas'
 import { assignPersona, computeProfile, computeScores, emptyScores } from './scoring'
-import { analyseTeam } from './team'
+import { runLab } from './cluster'
+import { classify, ROLE_TYPE_IDS, type RoleScores, type RoleTypeId } from './roles'
+import { DEMO_CANDIDATES as CANDIDATES } from './demo'
+import { analyseTeam, contextDistribution, MIN_AGGREGATE, roleDistribution } from './team'
 import type { Answers } from './types'
 
 const blank = (): Answers => ({ likert: {}, forced: {}, scenario: {} })
@@ -129,9 +132,61 @@ describe('demo data and teams', () => {
     expect(similarity(DEMO_STAFF[0].scores, DEMO_STAFF[0].scores)).toBe(100)
   })
 
-  it('analyses a team without throwing', () => {
-    const team = analyseTeam(DEMO_STAFF.filter((m) => m.team === 'ctw'))
+  it('analyses a team and counts every member once across role buckets', () => {
+    const members = DEMO_STAFF.filter((m) => m.team === 'ctw')
+    const team = analyseTeam(members)
     expect(team.size).toBe(8)
-    expect(Object.values(team.familyCount).reduce((a, b) => a + b, 0)).toBe(8)
+    const roles = team.aggregate!.roles
+    const primary = roles.groups.reduce((s, g) => s + g.primary, 0)
+    expect(primary + roles.noDominant + roles.unknown).toBe(8)
+    expect(roles.groups).toHaveLength(6)
+    for (const g of roles.groups) expect(g.types).toHaveLength(2)
+  })
+
+  it('keeps unknown role data and unconfirmed preferences out of the counts (unknown is not zero)', () => {
+    const [a, b] = DEMO_STAFF
+    const noData = { ...a, id: 'x', roleScores: null, roleClass: null, context: { ...a.context, autonomy: { value: 80, confirmed: false } } }
+    const dist = roleDistribution([noData, b])
+    expect(dist.unknown).toBe(1)
+    expect(dist.total).toBe(2)
+    const ctx = contextDistribution([noData]).find((c) => c.dim === 'autonomy')!
+    expect(ctx.counts.unknown).toBe(1)
+    expect(ctx.counts.high).toBe(0)
+  })
+
+  it(`hides aggregates for groups under ${MIN_AGGREGATE} people`, () => {
+    const members = DEMO_STAFF.filter((m) => m.team === 'ctw')
+    expect(analyseTeam(members.slice(0, MIN_AGGREGATE - 1)).aggregate).toBeNull()
+    expect(analyseTeam(members.slice(0, MIN_AGGREGATE)).aggregate).not.toBeNull()
+  })
+})
+
+describe('persona lab (12 role types)', () => {
+  it('clusters on role scores, excludes people without them, and reports agreement', () => {
+    const people = [...DEMO_STAFF, ...CANDIDATES, { roleScores: null, roleClass: null }]
+    const lab = runLab(people)!
+    expect(lab.excluded).toBe(1)
+    expect(lab.n).toBe(people.length - 1)
+    expect(lab.groups.reduce((s, g) => s + g.size, 0)).toBe(lab.n)
+    expect(lab.agreement).toBeGreaterThanOrEqual(0)
+    expect(lab.agreement).toBeLessThanOrEqual(1)
+    for (const g of lab.groups) expect(g.top).toHaveLength(2)
+  })
+
+  it('recovers well-separated role groups and names each by its top type', () => {
+    const make = (lead: RoleTypeId, n: number) =>
+      Array.from({ length: n }, (_, i) => {
+        const roleScores = Object.fromEntries(ROLE_TYPE_IDS.map((id, j) => [id, (id === lead ? 90 : 40) + ((i * 7 + j * 3) % 8) - 4])) as RoleScores
+        return { roleScores, roleClass: classify(roleScores) }
+      })
+    const lab = runLab([...make('analyst', 20), ...make('creator', 20), ...make('carer', 20)], 2, 6)!
+    expect(lab.best.k).toBe(3)
+    expect(lab.groups.map((g) => g.size)).toEqual([20, 20, 20])
+    expect(lab.typesFound.sort()).toEqual(['analyst', 'carer', 'creator'])
+    expect(lab.agreement).toBe(1)
+  })
+
+  it('returns null when there is too little data', () => {
+    expect(runLab(DEMO_STAFF.slice(0, 5))).toBeNull()
   })
 })

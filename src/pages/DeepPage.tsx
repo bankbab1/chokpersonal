@@ -178,7 +178,7 @@ function ModuleRunner({ m }: { m: DeepModule }) {
                     )
                   })}
                 </div>
-                <div className="mt-1 flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                <div className="mt-1 flex justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span>{t(LIKERT_SCALE[0])}</span>
                   <span>{t(LIKERT_SCALE[5])}</span>
                 </div>
@@ -188,7 +188,7 @@ function ModuleRunner({ m }: { m: DeepModule }) {
         })}
       </div>
 
-      <div className="mt-6 flex items-center justify-between gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-slate-200/80 bg-white/95 px-4 pt-2.5 backdrop-blur sm:static sm:mt-8 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none dark:border-white/[0.08] dark:bg-[#0c0c10]/95 sm:dark:bg-transparent" style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}>
         <Button variant="ghost" icon={ArrowLeft} disabled={page === 0} onClick={() => setPage(page - 1)}>
           {t('ย้อนกลับ', 'Back')}
         </Button>

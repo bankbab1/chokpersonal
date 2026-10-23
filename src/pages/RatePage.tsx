@@ -143,7 +143,7 @@ export function RatePage() {
                 )
               })}
             </div>
-            <div className="mt-1 flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
+            <div className="mt-1 flex justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>{t(LIKERT_SCALE[0])}</span>
               <span>{t(LIKERT_SCALE[5])}</span>
             </div>
@@ -151,7 +151,7 @@ export function RatePage() {
         ))}
       </div>
 
-      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/5 lg:bottom-4 dark:border-white/10 dark:bg-[#18181d] dark:shadow-black/40">
+      <div className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/5 lg:bottom-4 dark:border-white/10 dark:bg-[#18181d] dark:shadow-black/40">
         <span className="tabular text-sm text-slate-600 dark:text-slate-300">
           {answered}/{PEER_ITEMS.length}
           {relation === '' && ` · ${t('เลือกความสัมพันธ์', 'choose a relationship')}`}

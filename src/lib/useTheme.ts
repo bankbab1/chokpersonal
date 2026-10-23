@@ -16,7 +16,7 @@ export const useTheme = () => {
   })
   useEffect(() => {
     document.documentElement.style.colorScheme = theme
-    document.body.style.background = theme === 'dark' ? '#07070d' : '#fbfaff'
+    document.body.style.background = theme === 'dark' ? '#0c0c10' : '#fafafa'
   }, [theme])
   const toggle = () =>
     setTheme((t) => {

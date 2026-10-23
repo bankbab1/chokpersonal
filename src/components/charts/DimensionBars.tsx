@@ -63,7 +63,7 @@ export function DimensionBars({ scores, compare, facets }: { scores: Scores; com
                         const fv = facets[f.id]
                         return (
                           <div key={f.id} className={cn(fv === undefined && 'opacity-40')}>
-                            <div className="flex justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            <div className="flex justify-between gap-1 text-xs text-slate-500 dark:text-slate-400">
                               <span className="truncate">{t(f.name)}</span>
                               <span className="tabular">{fv ?? '–'}</span>
                             </div>

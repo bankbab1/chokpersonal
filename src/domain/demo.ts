@@ -1,6 +1,7 @@
 import { tt, type T } from '@/lib/i18n'
 import { DIM_CODES } from './dimensions'
 import { FAMILIES } from './personas'
+import { classify, syntheticContext, syntheticRoleScores, type Classification, type ContextProfile, type GrowthRole, type RoleScores } from './roles'
 import { assignPersona } from './scoring'
 import type { FamilyId, PersonaResult, Scores } from './types'
 
@@ -15,6 +16,12 @@ export interface StaffMember {
   openToMove: boolean
   scores: Scores
   persona: PersonaResult
+  /** Role interests (12 types) from simulated answers to the 48 items. */
+  roleScores: RoleScores | null
+  roleClass: Classification | null
+  /** Working preferences, synthetic and treated as confirmed for sample people. */
+  context: ContextProfile
+  growthRoles: GrowthRole[]
   /** Manager/peer-rated delivery from the 360 (0–100). Lets the demo show say–do gaps. */
   observedDelivery: number
   isYou?: boolean
@@ -108,6 +115,7 @@ export const buildDemoStaff = (): StaffMember[] => {
         openToMove: rand() > 0.35,
         scores,
         persona: assignPersona(scores),
+        ...roleFields(scores, n * 131 + 17),
         observedDelivery,
       })
       n++
@@ -171,6 +179,7 @@ export const buildDemoCandidates = () => {
       openToMove: true,
       scores,
       persona: assignPersona(scores),
+      ...roleFields(scores, i * 97 + 5),
       observedDelivery: 0,
       external: true,
       source: SOURCES[Math.floor(rand() * SOURCES.length)],
@@ -195,3 +204,11 @@ export const SAMPLE_POPULATION: Scores[] = (() => {
     return s
   })
 })()
+
+/** Role-interest fields for a sample person, all derived from the same synthetic profile. */
+export function roleFields(scores: Scores, seed: number): Pick<StaffMember, 'roleScores' | 'roleClass' | 'context' | 'growthRoles'> {
+  const roleScores = syntheticRoleScores(scores, seed)
+  const growth: GrowthRole[] =
+    scores.LD >= 65 ? ['project_lead'] : scores.A >= 65 && scores.CO >= 60 ? ['people_development'] : scores.C >= 65 ? ['specialist'] : seed % 3 === 0 ? ['exploring'] : ['team_support']
+  return { roleScores, roleClass: classify(roleScores), context: syntheticContext(scores), growthRoles: growth }
+}

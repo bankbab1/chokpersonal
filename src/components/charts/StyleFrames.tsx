@@ -24,7 +24,7 @@ export function EnergyMeter({ scores, compact }: { scores: Scores; compact?: boo
           style={{ left: `${e.score}%` }}
         />
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+      <div className="mt-1 flex justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>{t('อินโทรเวิร์ต', 'Introvert')}</span>
         <span>{t('แอมบิเวิร์ต', 'Ambivert')}</span>
         <span>{t('เอ็กซ์โทรเวิร์ต', 'Extrovert')}</span>
@@ -52,7 +52,7 @@ export function WorkStyleGrid({ scores, compact }: { scores: Scores; compact?: b
           {quad.map((q) => (
             <div
               key={q?.id}
-              className="flex items-center justify-center rounded-lg p-1 text-center text-[10px] font-semibold leading-tight"
+              className="flex items-center justify-center rounded-lg p-1 text-center text-xs font-semibold leading-tight"
               style={{ background: `${q?.color}${q?.id === w.id ? '40' : '14'}`, color: q?.color }}
             >
               {!compact && q && t(q.th, q.en)}
@@ -75,7 +75,7 @@ export function WorkStyleGrid({ scores, compact }: { scores: Scores; compact?: b
           </p>
         )}
         {!compact && (
-          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             {t('แกนตั้ง: กล้าบุก ↔ สงบ · แกนนอน: เน้นงาน ↔ เน้นคน', 'Vertical: assertive ↔ reserved · Horizontal: task ↔ people')}
           </p>
         )}
@@ -109,7 +109,7 @@ export function FourLetter({ scores }: { scores: Scores }) {
           const pct = a.value >= 50 ? a.value : 100 - a.value
           return (
             <div key={`${a.left.letter}${a.right.letter}-${i}`}>
-              <div className="flex justify-between gap-1 text-[11px]">
+              <div className="flex justify-between gap-1 text-xs">
                 <span className={cn(a.value < 50 && 'font-semibold')}>
                   {a.left.letter} · {t(a.left.label)}
                 </span>
@@ -126,7 +126,7 @@ export function FourLetter({ scores }: { scores: Scores }) {
           )
         })}
       </div>
-      <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
         {t(
           'ประมาณจากคะแนน 18 มิติ เพื่อให้เทียบกับรหัสที่คนคุ้นเคย ตัวท้าย -A/-T บอกความนิ่งเมื่อกดดัน ตัวอักษรสีจาง = ก้ำกึ่ง อาจเป็นได้ทั้งสองแบบ',
           'Estimated from the 18 dimensions so you can compare with the familiar code. The -A/-T suffix shows steadiness under pressure. Faded letters are borderline and could go either way.',

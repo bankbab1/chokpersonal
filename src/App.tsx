@@ -1,3 +1,4 @@
+import { CodeBookPage } from './pages/CodeBookPage'
 import { CodePage } from './pages/CodePage'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router'
 import { AppShell } from './components/layout/AppShell'
@@ -24,6 +25,8 @@ const router = createBrowserRouter([
       { path: '/test', element: <TestPage /> },
       { path: '/me', element: <MePage /> },
       { path: '/code', element: <CodePage /> },
+      { path: '/codes', element: <CodeBookPage /> },
+      { path: '/codes/:code', element: <CodeBookPage /> },
       { path: '/peers', element: <PeerPage /> },
       { path: '/deep', element: <DeepHub /> },
       { path: '/deep/:module', element: <DeepModulePage /> },

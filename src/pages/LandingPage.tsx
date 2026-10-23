@@ -1,15 +1,17 @@
-import { ArrowRight, Eye, EyeOff, Gem, Globe2, Lock, MessageCircleOff, Play, ShieldCheck, Users, UsersRound } from 'lucide-react'
+import { ArrowRight, Compass, EyeOff, FileCheck2, Fingerprint, Gem, Globe2, Lock, MessageCircleOff, Play, ShieldCheck, SlidersHorizontal, Users, UsersRound, ChevronDown } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { SameTypeShowcase } from '@/components/charts/SameType'
-import { Character } from '@/components/character/Character'
+import { CodeCharacter, tint } from '@/components/character/RoleCharacter'
 import { ORG_NAV } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/Button'
-import { Card, Eyebrow } from '@/components/ui/Card'
+import { Card, Chip, Eyebrow } from '@/components/ui/Card'
 import { DIMENSIONS } from '@/domain/dimensions'
-import { FAMILIES, PERSONAS } from '@/domain/personas'
+import { CHARACTER_GROUPS, CHARACTERS } from '@/domain/characters'
 import { MARKET_COMPARISON } from '@/domain/styles'
 import { useT } from '@/lib/i18n'
 import { useAssessment } from '@/store/assessment'
+
+/** Hero ring order: the two types of each family sit side by side. */
 
 export function LandingPage() {
   const t = useT()
@@ -22,54 +24,75 @@ export function LandingPage() {
     navigate('/me')
   }
 
-  const youGet = [
+  const layers = [
     {
-      icon: Eye,
-      title: t('รู้จักตัวเองแบบลึก', 'Know yourself, in depth'),
-      body: t('ตัวละคร 1 ใน 24 แบบ, Workfit ID, 18 มิติ, Top 5 จุดแข็ง และพฤติกรรมตอนกดดัน อยู่กับผู้ใหญ่ น้อง และลูกค้า', 'One of 24 characters, your Workfit ID, 18 dimensions, top 5 strengths and how you act under pressure, with seniors, juniors and customers'),
+      icon: Compass,
+      title: t('ตัวละครของคุณ', 'Your character'),
+      tag: t('16 แบบ ใน 4 สาย', '16 in 4 groups'),
+      body: t('มาจาก 4 ตัวอักษรแรกของรหัส จำง่าย เห็นภาพทันที', 'From the first 4 letters of your code: easy to remember, instantly visual'),
     },
+    {
+      icon: Fingerprint,
+      title: t('สไตล์การทำงาน', 'How you work'),
+      tag: t('Workfit Code', 'Workfit Code'),
+      body: t('18 มิติ รวมเรื่องไทย ๆ อย่างเกรงใจ อาวุโส และรักษาหน้า', '18 dimensions, including Thai ones like kreng jai, seniority and face'),
+    },
+    {
+      icon: SlidersHorizontal,
+      title: t('บริบทที่ต้องการ', 'Context you need'),
+      tag: t('ไว้คุยกับหัวหน้า', 'To talk through with a manager'),
+      body: t('อิสระ ความเปลี่ยนแปลง จังหวะทำงานกับคนอื่น ที่คุณยืนยันเอง', 'Autonomy, change and collaboration rhythm, confirmed by you'),
+    },
+    {
+      icon: FileCheck2,
+      title: t('หลักฐานทักษะ', 'Skill evidence'),
+      tag: t('เร็ว ๆ นี้', 'Coming soon'),
+      body: t('ทักษะต้องดูจากผลงานจริง แยกจากตัวละคร', 'Skills are shown by real work, separate from your character'),
+    },
+  ]
+
+  const youGet = [
     {
       icon: UsersRound,
       title: t('คนรอบตัวเห็นคุณแบบไหน', 'How others see you'),
-      body: t('ชวนหัวหน้า เพื่อน หรือน้องให้ประเมินคุณ แล้วดูจุดบอดและจุดแข็งที่ซ่อนอยู่ งานวิจัยพบว่ามุมมองคนอื่นทำนายผลงานได้ดีกว่าการประเมินตัวเอง', 'Invite a manager, colleague or friend to rate you, then see blind spots and hidden strengths. Research shows others’ views predict job performance better than self-ratings'),
+      body: t('ชวนหัวหน้า เพื่อน หรือน้องให้ประเมินคุณ แล้วดูจุดบอดและจุดแข็งที่ซ่อนอยู่', 'Invite a manager, colleague or friend to rate you, then see blind spots and hidden strengths'),
     },
     {
       icon: Globe2,
       title: t('สะพานวัฒนธรรมไทย–ต่างชาติ', 'Thai–foreign culture bridge'),
-      body: t('คำแนะนำเฉพาะตัวว่าสไตล์ของคุณจะถูกมองอย่างไรในทีมนานาชาติ หรือในทีมคนไทย', 'Personal tips on how your style lands in an international team, or in a Thai team'),
+      body: t('สไตล์ของคุณจะถูกมองอย่างไรในทีมนานาชาติ หรือในทีมคนไทย', 'How your style lands in an international team, or in a Thai team'),
     },
   ]
 
   const pains = [
     { icon: Gem, title: t('พูดเก่ง ≠ ทำเก่ง', 'Talking well ≠ delivering well'), body: t('Workfit แยก “พูด” กับ “ทำ” ออกจากกัน ช่วยให้คนเงียบที่ทำงานดีถูกมองเห็น', 'Workfit separates “say” from “do”, so quiet high performers get seen') },
     { icon: Users, title: t('แบ่งพรรคแบ่งพวก', 'Cliques'), body: t('รู้ว่าตัวเองผูกกลุ่มแค่ไหน และทีมเสี่ยงแบ่งกลุ่มหรือเปล่า', 'See how strongly you lean into in-groups, and whether a team risks splitting') },
-    { icon: MessageCircleOff, title: t('ไม่กล้าพูดเมื่อมีปัญหา', 'Staying silent when something is wrong'), body: t('เกรงใจเป็นเรื่องดี แต่ถ้ามากไปอาจไม่มีใครรู้ว่าคุณงานล้นหรือถูกกดดัน', 'Kreng jai is a strength, but too much means no one knows you are overloaded or pressured') },
+    { icon: MessageCircleOff, title: t('เกรงใจจนไม่กล้าพูด', 'Too kreng jai to speak up'), body: t('เกรงใจเป็นเรื่องดี แต่ถ้ามากไปอาจไม่มีใครรู้ว่าคุณงานล้นหรือถูกกดดัน', 'Kreng jai is a strength, but too much means no one knows you are overloaded or pressured') },
   ]
 
   return (
-    <div className="space-y-24">
+    <div className="space-y-20">
       {/* Hero */}
       <section className="grid items-center gap-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:pt-12">
         <div className="animate-rise">
           <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-medium text-violet-700 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-200">
-            <span className="size-1.5 rounded-full bg-violet-600" />
-            {t('แบบทดสอบบุคลิกภาพการทำงาน ที่เข้าใจคนไทย', 'The work personality test that understands Thai workplaces')}
+            <span className="size-1.5 rounded-full bg-violet-700 dark:bg-violet-300" />
+            {t('รู้จักตัวตนการทำงาน แบบที่เข้าใจคนไทย', 'Know your working self, in a way that gets Thai workplaces')}
           </span>
-          <h1 className="mt-5 text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
-            {t('รู้จัก', 'Know the ')}
-            <span className="text-gradient">{t('ตัวตนการทำงาน', 'working you')}</span>
+          <h1 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">
+            {t('คุณอยากรับบทไหนในทีม?', 'Which role do you want on the team?')}
             <br />
-            {t('ของคุณจริง ๆ', 'for real')}
+            <span className="text-violet-700 dark:text-violet-300">{t('ค้นหาตัวละครการทำงานของคุณ', 'Meet your work character')}</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600 dark:text-slate-300">
             {t(
-              'Workfit วัด 18 มิติหลัก และเจาะลึกได้ถึง 87 ด้าน รวมถึงเรื่องที่แบบทดสอบฝรั่งไม่เคยวัด เช่น เกรงใจ ระบบอาวุโส รักษาหน้า และบุญคุณ แล้วสรุปเป็นตัวละคร Workfit ID และคำแนะนำที่ใช้ได้จริง สำหรับคนไทยและชาวต่างชาติที่ทำงานกับคนไทย',
-              'Workfit measures 18 core dimensions, and up to 87 aspects in depth, including what Western tests never measure, such as kreng jai (deference), seniority, face and bunkhun (loyalty), and turns them into a character, your Workfit ID and practical advice, for Thais and for foreigners working with Thais.',
+              'รู้ว่าคุณอยากรับบทแบบไหน ทำงานสไตล์ไหน และควรคุยอะไรกับหัวหน้าและทีม ออกแบบมาเพื่อที่ทำงานแบบไทย',
+              'Find the role you want, how you work, and what to talk through with your manager and team. Built for Thai workplaces.',
             )}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button variant="glow" size="lg" to="/test" iconRight={ArrowRight}>
-              {completed ? t('ทำแบบทดสอบอีกครั้ง', 'Retake the test') : t('เริ่มทำแบบทดสอบ · 20 นาที', 'Start the test · 20 min')}
+            <Button variant="primary" size="lg" to="/test" iconRight={ArrowRight}>
+              {completed ? t('ทำแบบทดสอบอีกครั้ง', 'Retake the test') : t('เริ่มทำแบบทดสอบ', 'Start the test')}
             </Button>
             <Button size="lg" icon={Play} onClick={demo}>
               {t('ดูผลตัวอย่าง', 'See a sample result')}
@@ -88,41 +111,103 @@ export function LandingPage() {
           </div>
         </div>
 
-        <div className="relative mx-auto aspect-square w-full max-w-[460px]">
-          {FAMILIES.map((f, i) => {
-            const angle = (i / FAMILIES.length) * Math.PI * 2 - Math.PI / 2
-            const x = 50 + 36 * Math.cos(angle)
-            const y = 50 + 36 * Math.sin(angle)
-            const variant = PERSONAS.filter((p) => p.family === f.id)[i % 4].variant
-            return (
-              <div key={f.id} className="absolute -translate-x-1/2 -translate-y-1/2 animate-pop" style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 80}ms` }}>
-                <div className="animate-float" style={{ animationDelay: `${i * 0.6}s` }}>
-                  <Character animal={f.animal} variant={variant} color={f.color} soft={f.soft} size={118} className="drop-shadow-xl" />
-                </div>
-              </div>
-            )
-          })}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-            <div className="text-5xl font-semibold text-gradient">24</div>
-            <div className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('persona แบบไทย', 'Thai personas')}</div>
+        {/* 16 characters as labelled tiles, one row per group colour. */}
+        <div className="rounded-[1.75rem] bg-slate-100/80 p-3 sm:p-4 dark:bg-white/[0.04]">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5">
+            {CHARACTERS.map((c, i) => {
+              const g = CHARACTER_GROUPS.find((x) => x.key === c.group)!
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => navigate(`/personas/${c.key}`)}
+                  className="animate-pop flex flex-col items-center gap-0.5 rounded-2xl px-0.5 pb-2 pt-2 transition hover:-translate-y-0.5 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"
+                  style={{ animationDelay: `${i * 35}ms`, background: tint(g.color, 0.86) }}
+                >
+                  <CodeCharacter code={c.key} size={64} />
+                  <span className="text-center text-xs font-semibold leading-tight text-slate-800">{t(c.name).replace(/^The /, '')}</span>
+                  <span className="text-xs font-semibold tracking-wide" style={{ color: g.color }}>
+                    {c.key}
+                  </span>
+                </button>
+              )
+            })}
           </div>
+          <p className="mt-3 text-center text-xs text-slate-500 dark:text-slate-400">
+            {t('4 สาย × 4 ตัวละคร · แตะเพื่อดู', '4 groups × 4 characters · tap to explore')}
+          </p>
         </div>
       </section>
 
-      {/* What you get */}
+      {/* Layers */}
       <section>
         <Eyebrow>{t('สิ่งที่คุณจะได้', 'What you get')}</Eyebrow>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('ไม่ใช่แค่ผลทดสอบ แต่เป็นแผนที่ของตัวคุณ', 'Not just a test result: a map of you')}</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {youGet.map(({ icon: Icon, title, body }, i) => (
-            <Card key={title} className="animate-rise" style={{ animationDelay: `${i * 90}ms` }}>
-              <div className="grid size-11 place-items-center rounded-2xl bg-gradient-brand text-white">
-                <Icon size={20} />
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('4 ชั้น แยกกันชัด ไม่รวมเป็นคะแนนเดียว', '4 clear layers, never one combined score')}</h2>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {layers.map(({ icon: Icon, title, tag, body }, i) => (
+            <Card key={title} className="animate-rise" style={{ animationDelay: `${i * 70}ms` }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300">
+                  <Icon size={20} />
+                </div>
+                <Chip>{tag}</Chip>
               </div>
               <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
             </Card>
           ))}
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {youGet.map(({ icon: Icon, title, body }) => (
+            <Card key={title} className="flex gap-4">
+              <Icon size={22} className="mt-0.5 shrink-0 text-violet-700 dark:text-violet-300" />
+              <div>
+                <h3 className="font-semibold">{title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Groups */}
+      <section>
+        <Eyebrow>{t('4 สาย · 16 ตัวละคร', '4 groups · 16 characters')}</Eyebrow>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('รหัสบอกทุกอย่าง อ่านง่ายเป็นมาตรฐาน', 'One code says it all, the same way for everyone')}</h2>
+        <p className="mt-2 max-w-2xl text-slate-600 dark:text-slate-300">
+          {t(
+            'ตัวอักษร 1–2 บอกสาย ตัวอักษร 1–4 บอกตัวละคร ตัวอักษร 5–7 บอกวิธีทำงานกับคนแบบไทย ทุกตัวละครมีคุณค่าเท่ากัน',
+            'Letters 1–2 give your group, letters 1–4 your character, letters 5–7 how you work with people Thai-style. Every character has equal value.',
+          )}
+        </p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {CHARACTER_GROUPS.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => navigate('/personas')}
+              className="group rounded-2xl p-4 text-left transition active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"
+              style={{ background: tint(g.color, 0.86) }}
+            >
+              <div className="font-semibold" style={{ color: g.color }}>
+                {t(g.plural)} · {g.key}
+              </div>
+              <div className="text-xs text-slate-600">{t(g.letters)}</div>
+              <div className="mt-3 grid grid-cols-4 gap-1">
+                {CHARACTERS.filter((c) => c.group === g.key).map((c) => (
+                  <div key={c.key} className="flex min-w-0 flex-col items-center text-center">
+                    <CodeCharacter code={c.key} size={60} className="transition group-hover:scale-105" />
+                    <div className="mt-0.5 text-xs font-medium leading-tight text-slate-800">{t(c.name).replace(/^The /, '')}</div>
+                  </div>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-6">
+          <Button to="/personas" iconRight={ArrowRight}>
+            {t('ดูตัวละครทั้ง 16 แบบ', 'See all 16 characters')}
+          </Button>
         </div>
       </section>
 
@@ -133,7 +218,7 @@ export function LandingPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {pains.map(({ icon: Icon, title, body }) => (
             <Card key={title}>
-              <Icon size={22} className="text-violet-600 dark:text-violet-300" />
+              <Icon size={22} className="text-violet-700 dark:text-violet-300" />
               <h3 className="mt-3 text-lg font-semibold">{title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
             </Card>
@@ -147,7 +232,7 @@ export function LandingPage() {
         <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('ลึกกว่า label เดียว', 'Deeper than one label')}</h2>
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <div className="text-sm font-semibold text-violet-600 dark:text-violet-300">{t('1 · คำถาม 3 รูปแบบ', '1 · Three question formats')}</div>
+            <div className="text-sm font-semibold text-violet-700 dark:text-violet-300">{t('1 · คำถามหลายรูปแบบ', '1 · Several question formats')}</div>
             <h3 className="mt-1 text-xl font-semibold">{t('ตอบยากที่จะ “แต่งให้ดูดี”', 'Hard to “fake good”')}</h3>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {[
@@ -164,7 +249,7 @@ export function LandingPage() {
             </div>
           </Card>
           <Card>
-            <div className="text-sm font-semibold text-pink-600 dark:text-pink-300">{t('2 · 18 มิติ → เจาะลึกได้ 87 ด้าน', '2 · 18 dimensions → up to 87 aspects')}</div>
+            <div className="text-sm font-semibold text-violet-700 dark:text-violet-300">{t('2 · 18 มิติ → เจาะลึกได้ 87 ด้าน', '2 · 18 dimensions → up to 87 aspects')}</div>
             <h3 className="mt-1 text-xl font-semibold">{t('มากกว่าแค่ “ใช่ หรือ ไม่ใช่”', 'More than just “yes or no”')}</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t('+ ด้านย่อย 54 · แรงจูงใจ 8 · ความเสี่ยงเมื่อกดดัน 6 · ความไวในการเรียนรู้', '+ 54 facets · 8 motivators · 6 under-pressure risks · learning agility')}</p>
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -176,17 +261,17 @@ export function LandingPage() {
             </div>
           </Card>
           <Card>
-            <div className="text-sm font-semibold text-orange-600 dark:text-orange-300">{t('3 · Workfit Code + 24 persona', '3 · Workfit Code + 24 personas')}</div>
-            <h3 className="mt-1 text-xl font-semibold">{t('คนประเภทเดียวกันก็ไม่เหมือนกัน', 'Same type, still unique')}</h3>
+            <div className="text-sm font-semibold text-violet-700 dark:text-violet-300">{t('3 · 16 ตัวละคร + 3 ระดับ', '3 · 16 characters + 3 levels')}</div>
+            <h3 className="mt-1 text-xl font-semibold">{t('อยากทำอะไร กับ ทำงานแบบไหน', 'What you want to do, and how you work')}</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               {t(
-                'รหัสมาตรฐาน 7 ตัวอักษรแบบ ENLQ-HRW ของ Workfit เอง: 4 ตัวแรกคือแกนตัวตน 3 ตัวหลังคือบริบทคนไทย พร้อม สาย × แก๊ง 16 กลุ่ม เช่น สายครีเอต · แก๊งครอบครัว และตัวละคร 24 แบบ',
-                "Workfit's own standard 7-letter code like ENLQ-HRW: 4 Core letters, then 3 Thai-context letters, plus 16 vibe × crew groups such as Creator · Family Crew, and 24 characters",
+                'เลือกได้ว่าอยากรู้ลึกแค่ไหน: เร็ว 5 นาที มาตรฐาน 15 นาที หรือมืออาชีพ 30 นาทีที่เพิ่ม 12 บทบาทที่อยากทำ รหัส 7 ตัวอักษรแบบ INBC-HMW บอกตัวละครและบริบทคนไทย',
+                'Choose your depth: Quick 5 min, Standard 15 min, or Professional 30 min with 12 role interests. A 7-letter code like INBC-HMW gives your character and Thai context',
               )}
             </p>
           </Card>
           <Card className="lg:col-span-2">
-            <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">{t('4 · เครื่องมือสำหรับองค์กร', '4 · Tools for organisations')}</div>
+            <div className="text-sm font-semibold text-violet-700 dark:text-violet-300">{t('4 · เครื่องมือสำหรับองค์กร', '4 · Tools for organisations')}</div>
             <h3 className="mt-1 text-xl font-semibold">{t('เมื่อพร้อม แชร์ผลกับทีมได้', 'Share with your team when you are ready')}</h3>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               {ORG_NAV.map(({ to, label, icon: Icon, blurb }) => (
@@ -196,7 +281,7 @@ export function LandingPage() {
                   onClick={() => navigate(to)}
                   className="rounded-2xl bg-slate-900/[0.03] p-3 text-left transition hover:bg-slate-900/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
                 >
-                  <Icon size={18} className="text-emerald-600 dark:text-emerald-300" />
+                  <Icon size={18} className="text-violet-700 dark:text-violet-300" />
                   <div className="mt-2 text-sm font-semibold">{t(label)}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">{t(blurb)}</div>
                 </button>
@@ -209,11 +294,11 @@ export function LandingPage() {
       {/* Same type, different people */}
       <section>
         <Eyebrow>{t('ทำไมรหัสเดียวไม่พอ', 'Why one code is not enough')}</Eyebrow>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('รหัสเดียวกัน ≠ คนเดียวกัน', 'Same type ≠ same person')}</h2>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('ประเภทเดียวกัน ≠ คนเดียวกัน', 'Same type ≠ same person')}</h2>
         <p className="mt-2 max-w-2xl text-slate-600 dark:text-slate-300">
           {t(
-            'แบบทดสอบ 16 ประเภทตัดสินจากจุดตัดแค่ 4–5 จุด คนที่ได้รหัสเดียวกันจึงยังต่างกันได้เกือบทุกเรื่อง Workfit จึงวัดถึง 87 ด้านและบอกว่าคุณต่างจากคนรหัสเดียวกันตรงไหน',
-            'A 16-type test decides on just 4–5 cut-offs, so people with the same type can still differ on almost everything. That is why Workfit measures up to 87 aspects and shows where you differ from others with your type.',
+            'แบบทดสอบที่แบ่งคนเป็นกล่องตัดสินจากจุดตัดไม่กี่จุด คนกล่องเดียวกันจึงยังต่างกันได้มาก Workfit จึงแสดงคะแนนจริงและบอกว่าคุณต่างจากคนประเภทเดียวกันตรงไหน',
+            'Box-style tests decide on a few cut-offs, so people in the same box can still differ a lot. Workfit shows the real scores and where you differ from others of your type.',
           )}
         </p>
         <div className="mt-8">
@@ -225,18 +310,48 @@ export function LandingPage() {
       <section>
         <Eyebrow>{t('เทียบกับเครื่องมือที่มีในตลาด', 'Compared with popular tools')}</Eyebrow>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('เก็บข้อดีของทุกเครื่องมือ แล้วปิดจุดอ่อน', 'Keep what each tool does well, fix what it misses')}</h2>
-        <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+          {t('เทียบเฉพาะฟีเจอร์ ผล Workfit ไม่ได้แปลงหรือเท่ากับผลของเครื่องมืออื่น', 'A feature comparison only. Workfit results do not convert to, or equal, results from other tools.')}
+        </p>
+        {/* Phones: a grouped list that expands per tool, instead of 7 tall cards. */}
+        <Card className="mt-6 p-0 md:hidden">
+          <ul className="divide-y divide-slate-200/80 dark:divide-white/[0.08]">
+            {MARKET_COMPARISON.map((m) => (
+              <li key={m.tool.en}>
+                <details className="group">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-medium active:bg-slate-50 dark:active:bg-white/[0.04]">
+                    {t(m.tool)}
+                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-2 px-4 pb-4 text-sm">
+                    {m.keep && (
+                      <p>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">{t('เก็บไว้: ', 'Keep: ')}</span>
+                        <span className="text-slate-600 dark:text-slate-300">{t(m.keep)}</span>
+                      </p>
+                    )}
+                    <p>
+                      <span className="font-semibold text-violet-700 dark:text-violet-300">{t('Workfit ทำดีกว่า: ', 'Workfit does better: ')}</span>
+                      <span className="text-slate-600 dark:text-slate-300">{t(m.fix)}</span>
+                    </p>
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <div className="mt-8 hidden gap-3 md:grid md:grid-cols-2 lg:grid-cols-3">
           {MARKET_COMPARISON.map((m) => (
             <Card key={m.tool.en} className="p-5">
               <div className="font-semibold">{t(m.tool)}</div>
               {m.keep && (
                 <p className="mt-2 text-sm">
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{t('เก็บไว้: ', 'Keep: ')}</span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">{t('เก็บไว้: ', 'Keep: ')}</span>
                   <span className="text-slate-600 dark:text-slate-300">{t(m.keep)}</span>
                 </p>
               )}
               <p className="mt-2 text-sm">
-                <span className="font-semibold text-violet-600 dark:text-violet-300">{t('Workfit ทำดีกว่า: ', 'Workfit does better: ')}</span>
+                <span className="font-semibold text-violet-700 dark:text-violet-300">{t('Workfit ทำดีกว่า: ', 'Workfit does better: ')}</span>
                 <span className="text-slate-600 dark:text-slate-300">{t(m.fix)}</span>
               </p>
             </Card>
@@ -244,33 +359,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Families */}
-      <section>
-        <Eyebrow>{t('6 ตระกูล · 24 persona', '6 families · 24 personas')}</Eyebrow>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t('คุณเป็นสัตว์ตัวไหนในที่ทำงาน?', 'Which animal are you at work?')}</h2>
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {FAMILIES.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => navigate(`/personas?family=${f.id}`)}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 text-center transition hover:-translate-y-1 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600 dark:border-white/10 dark:bg-white/[0.04]"
-            >
-              <Character animal={f.animal} variant="LF" color={f.color} soft={f.soft} size={96} className="mx-auto transition group-hover:scale-105" />
-              <div className="mt-3 font-semibold">{t(f.th, f.en)}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">{t(f.animalTh, f.animalEn)}</div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <Card className="overflow-hidden p-8 text-center sm:p-12">
-        <div className="absolute inset-0 bg-gradient-brand opacity-[0.08]" />
-        <h2 className="relative text-2xl font-semibold tracking-tight sm:text-3xl">{t('พร้อมรู้จักตัวเองในแบบที่ไม่เคยรู้?', 'Ready to meet the working you?')}</h2>
-        <p className="relative mx-auto mt-3 max-w-lg text-slate-600 dark:text-slate-300">
+      <Card className="p-8 text-center sm:p-12">
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('พร้อมรู้จักตัวละครการทำงานของคุณ?', 'Ready to meet your work character?')}</h2>
+        <p className="mx-auto mt-3 max-w-lg text-slate-600 dark:text-slate-300">
           {t('ผลเป็นของคุณ คุณเลือกเองว่าจะแชร์กับหัวหน้าหรือ HR หรือไม่', 'Your results are yours. You decide whether to share them with a manager or HR.')}
         </p>
-        <Button variant="glow" size="lg" to="/test" className="relative mt-6" iconRight={ArrowRight}>
+        <Button variant="primary" size="lg" to="/test" className="mt-6" iconRight={ArrowRight}>
           {t('เริ่มเลย', 'Start now')}
         </Button>
       </Card>

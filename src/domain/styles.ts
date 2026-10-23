@@ -148,7 +148,7 @@ const STRENGTHS: { id: string; name: T; blurb: T; f: (s: Scores) => number }[] =
   { id: 'ideas', name: tt('นักคิดสิ่งใหม่', 'Idea maker'), blurb: tt('เห็นทางเลือกที่คนอื่นยังไม่เห็น', 'Sees options others have not'), f: (s) => s.O },
   { id: 'system', name: tt('มือวางระบบ', 'System builder'), blurb: tt('เปลี่ยนความวุ่นวายเป็นขั้นตอนที่ใช้ได้จริง', 'Turns chaos into steps that work'), f: (s) => (s.C + s.ST) / 2 },
   { id: 'detail', name: tt('ตาเหยี่ยวจับรายละเอียด', 'Eagle eye for detail'), blurb: tt('เจอจุดผิดก่อนจะกลายเป็นปัญหา', 'Spots errors before they become problems'), f: (s) => 100 - s.MP },
-  { id: 'integrity', name: tt('ซื่อตรงเชื่อใจได้', 'Trustworthy'), blurb: tt('ทำสิ่งที่ถูกแม้ไม่มีใครเห็น', 'Does the right thing when no one is looking'), f: (s) => s.H },
+  { id: 'integrity', name: tt('ถ่อมตน ไม่เน้นสถานะ', 'Modest'), blurb: tt('ให้เครดิตคนอื่น ไม่เน้นตำแหน่งหรือสถานะ', 'Shares credit, not driven by title or status'), f: (s) => s.H },
   { id: 'speed', name: tt('ลุยไว', 'Quick mover'), blurb: tt('เปลี่ยนแผนเป็นการลงมือทันที', 'Turns plans into action at once'), f: (s) => s.PC },
   { id: 'careful', name: tt('คิดรอบคอบ', 'Careful thinker'), blurb: tt('ชั่งน้ำหนักก่อนตัดสินใจ', 'Weighs things up before deciding'), f: (s) => 100 - s.PC },
   { id: 'teamwork', name: tt('ทีมเวิร์ก', 'Team player'), blurb: tt('ทำงานกับหลายฝ่ายได้ราบรื่น', 'Works smoothly across teams'), f: (s) => s.CO },
@@ -206,14 +206,14 @@ export const MARKET_COMPARISON: { tool: T; keep?: T; fix: T }[] = [
     tool: tt('แบบทดสอบ 16 ประเภท (4 ตัวอักษร + A/T)', '16-type tests (4 letters + A/T)'),
     keep: tt('จำง่าย แชร์ได้ มีรหัส 4 ตัวอักษร ตัวท้าย -A/-T และกลุ่มบทบาท 4 กลุ่ม', 'Memorable and shareable: 4 letters, the -A/-T suffix and 4 role groups'),
     fix: tt(
-      'ตัดครึ่งที่ 50 ทำให้คนตรงกลางได้ผลสลับไปมา และไม่ได้ออกแบบมาใช้คัดเลือกคน → Workfit แสดง % ทุกตัวอักษร บอกว่าตัวไหนก้ำกึ่ง และใช้คะแนนจริงในการจับคู่งาน',
-      'Splitting at 50 makes people near the middle flip types, and it was never built for selection → Workfit shows a % for every letter, flags borderline ones and matches jobs on real scores',
+      'ตัดครึ่งที่ 50 ทำให้คนตรงกลางได้ผลสลับไปมา และไม่ได้เชื่อมกับหน้าที่งานจริง → Workfit แสดงทุกแกนเป็นสเปกตรัม บอกว่าตัวไหนก้ำกึ่ง และแยกบทบาทที่อยากทำ ออกจากสไตล์การทำงาน',
+      'Splitting at 50 makes people near the middle flip types, and it is not linked to real duties → Workfit shows every axis as a spectrum, flags borderline letters and keeps the roles you want separate from how you work',
     ),
   },
   {
     tool: tt('DISC (4 สไตล์การทำงาน)', 'DISC (4 work styles)'),
     keep: tt('ภาษาง่าย มีสไตล์หลักและสไตล์รอง ใช้คุยเรื่องการสื่อสารในทีมได้ทันที', 'Simple language with a primary and secondary style, instantly useful for team communication'),
-    fix: tt('มีแค่ 4 กล่อง หยาบเกินไปสำหรับการคัดเลือก → Workfit มี 4 สไตล์ไว้คุยกัน แต่จับคู่งานด้วย 18 มิติ', 'Only 4 boxes, too coarse for selection → Workfit keeps the 4 styles for conversation but matches jobs on 18 dimensions'),
+    fix: tt('มีแค่ 4 กล่อง หยาบเกินไปที่จะอธิบายคน → Workfit มี 4 สไตล์ไว้คุยกัน และมี 18 มิติกับ 12 บทบาทที่อยากทำให้เห็นรายละเอียด', 'Only 4 boxes, too coarse to describe a person → Workfit keeps 4 styles for conversation, plus 18 dimensions and 12 role interests for detail'),
   },
   {
     tool: tt('Introvert / Ambivert / Extrovert', 'Introvert / Ambivert / Extrovert'),
@@ -223,12 +223,12 @@ export const MARKET_COMPARISON: { tool: T; keep?: T; fix: T }[] = [
   {
     tool: tt('แบบประเมินจุดแข็ง (Top 5)', 'Strengths tests (Top 5)'),
     keep: tt('พูดถึงจุดแข็ง ทำให้คนอยากพัฒนา', 'Strengths language makes people want to grow'),
-    fix: tt('ไม่บอกว่าเหมาะกับงานไหนและราคาสูง → Workfit ให้ Top 5 จุดแข็ง พร้อมความเหมาะกับงาน ทีม และหัวหน้า', "Doesn't say which jobs fit and is expensive → Workfit gives Top 5 strengths plus job, team and manager fit"),
+    fix: tt('ไม่เชื่อมกับหน้าที่งานและราคาสูง → Workfit ให้จุดเด่น พร้อมหน้าที่งานที่น่าสำรวจ และประเด็นที่ควรคุยกับหัวหน้าและทีม', "Not linked to duties and expensive → Workfit shows standouts plus work worth exploring and what to discuss with your manager and team"),
   },
   {
     tool: tt('Big Five / HEXACO', 'Big Five / HEXACO'),
     keep: tt('มีงานวิจัยรองรับมากที่สุด', 'The strongest research base'),
-    fix: tt('ไม่มีชื่อเรียกที่จำง่าย และไม่วัดบริบทคนไทย → Workfit ใช้เป็นแกน แล้วเพิ่ม 6 มิติไทยกับตัวละคร 24 แบบ', 'No memorable labels and no Thai context → Workfit uses it as the core and adds 6 Thai dimensions and 24 characters'),
+    fix: tt('ไม่มีชื่อเรียกที่จำง่าย และไม่วัดบริบทคนไทย → Workfit ใช้เป็นแกน แล้วเพิ่ม 6 มิติไทยกับตัวละครการทำงาน 12 แบบ', 'No memorable labels and no Thai context → Workfit uses it as the core and adds 6 Thai dimensions and 12 work characters'),
   },
   {
     tool: tt('แบบทดสอบผู้บริหาร (ด้านมืดเมื่อกดดัน)', 'Executive tests (derailers under pressure)'),

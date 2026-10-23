@@ -1,14 +1,13 @@
-import { ArrowRight, ClipboardList, Link2, ListChecks, Plus, RotateCcw, Sparkles, Target, Users } from 'lucide-react'
-import { useMemo } from 'react'
+import { ArrowRight, ClipboardList, Link2, ListChecks, Pencil, Plus, RotateCcw, Target, Users } from 'lucide-react'
 import { Link } from 'react-router'
+import { RoleCharacter } from '@/components/character/RoleCharacter'
 import { Button } from '@/components/ui/Button'
 import { Card, Chip, Eyebrow } from '@/components/ui/Card'
 import { TEAMS } from '@/domain/demo'
-import { dimMeta } from '@/domain/dimensions'
-import { JOB_LINES, MANAGER_STYLES } from '@/domain/fit'
-import { scoreCandidate, type RoleSpec } from '@/domain/sourcing'
+import { CONTEXT_DIMS, MANAGER_TEMPLATES, roleTypeById, type ContextDimId } from '@/domain/roles'
+import { checkWeights, weightedTypes, weightToPct, type RoleSpec } from '@/domain/sourcing'
 import { useT } from '@/lib/i18n'
-import { useCandidatePool, useStaffPool } from '@/lib/useProfile'
+import { useCandidatePool } from '@/lib/useProfile'
 import { pipelineKey, useSourcing } from '@/store/sourcing'
 
 export function SourcingHome() {
@@ -16,25 +15,25 @@ export function SourcingHome() {
   const roles = useSourcing((s) => s.roles)
   const resetDemo = useSourcing((s) => s.resetDemo)
   const steps = [
-    { icon: Target, title: t('กำหนดโปรไฟล์ตำแหน่ง', 'Define the role profile'), body: t('เริ่มจากเทมเพลตสายงาน โคลนจากคนเก่งตัวจริง หรือเติมจุดบอดของทีม', 'Start from a job-area template, clone your best people, or fill a team’s blind spots') },
-    { icon: Link2, title: t('ส่งลิงก์ให้ผู้สมัคร', 'Send candidates a link'), body: t('ผู้สมัครทำแบบทดสอบ 20 นาที พนักงานภายในที่เปิดรับการย้ายงานถูกรวมให้อัตโนมัติ', 'Candidates take the 20-minute test; opted-in internal staff are included automatically') },
-    { icon: ListChecks, title: t('Shortlist พร้อมเหตุผล', 'A shortlist with reasons'), body: t('จัดอันดับตามงาน ทีม และหัวหน้า แยก “พูดเก่ง” ออกจาก “ทำเก่ง”', 'Ranked by job, team and manager fit, separating “talks well” from “delivers well”') },
-    { icon: ClipboardList, title: t('คู่มือสัมภาษณ์รายคน', 'Per-candidate interview guide'), body: t('คำถามเจาะจุดที่ต้องพิสูจน์ของแต่ละคน ไม่ต้องคิดคำถามเอง', 'Questions aimed at what each person needs to prove') },
+    { icon: Target, title: t('เขียนหน้าที่ของตำแหน่ง', 'Describe the duties'), body: t('ให้น้ำหนักหน้าที่ตามบทบาท 12 แบบ รวม 100% และกำหนดช่วงการทำงานที่รับได้', 'Weight the duties over the 12 role types (100% in total) and set acceptable working ranges') },
+    { icon: Link2, title: t('ส่งลิงก์ให้ผู้สมัคร', 'Send candidates a link'), body: t('ผู้สมัครทำแบบสำรวจ พนักงานภายในที่เปิดรับการย้ายงานถูกรวมไว้ด้วย', 'Candidates take the survey; opted-in internal staff are included too') },
+    { icon: ListChecks, title: t('ดูทีละคน ไม่จัดอันดับ', 'One by one, no ranking'), body: t('เรียงตามชื่อหรือวันที่ แสดงบทบาทที่สนใจ ความชอบในการทำงาน และสิ่งที่ควรตกลงร่วมกันแยกจากกัน', 'Sorted by name or date; role interests, working preferences and things worth agreeing are shown separately') },
+    { icon: ClipboardList, title: t('คู่มือคุยตามหน้าที่', 'Duty-based interview guide'), body: t('คำถามเรื่องหน้าที่จริงและข้อมูลที่ยังขาด ให้ตัดสินจากหลักฐาน', 'Questions about the real duties and missing information, so decisions rest on evidence') },
   ]
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <Eyebrow>{t('สรรหาและคัดเลือก', 'Sourcing & selection')}</Eyebrow>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{t('หาคนที่ใช่ ไม่ใช่แค่คนที่สัมภาษณ์เก่ง', 'Find the right person, not just the best interviewee')}</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{t('เริ่มจากหน้าที่จริง แล้วคุยกับคนทีละคน', 'Start from the real duties, then talk to people one by one')}</h1>
           <p className="mt-2 max-w-2xl text-slate-600 dark:text-slate-300">
             {t(
-              'สร้างโปรไฟล์ตำแหน่ง แล้วดูผู้สมัครภายนอกและพนักงานภายในในรายการเดียว พร้อมเหตุผล ความเข้ากับทีม และคำถามสัมภาษณ์',
-              'Build a role profile, then see external applicants and internal staff in one list, with reasons, team fit and interview questions.',
+              'Workfit ไม่ให้คะแนนรวม ไม่จัดอันดับ และไม่คัดใครออกอัตโนมัติ ผลเป็นข้อมูลประกอบการคุย ให้ตัดสินจากการสัมภาษณ์ งานตัวอย่าง และการตรวจอ้างอิง',
+              'Workfit gives no overall score, no ranking and never rejects anyone automatically. Results are conversation material; decide with interviews, work samples and reference checks.',
             )}
           </p>
         </div>
-        <Button variant="glow" size="lg" icon={Plus} to="/sourcing/new">
+        <Button variant="primary" size="lg" icon={Plus} to="/sourcing/new">
           {t('สร้างตำแหน่งใหม่', 'New role')}
         </Button>
       </div>
@@ -43,7 +42,7 @@ export function SourcingHome() {
         {steps.map(({ icon: Icon, title, body }, i) => (
           <Card key={title} className="p-4">
             <div className="flex items-center gap-2">
-              <span className="grid size-8 place-items-center rounded-xl bg-gradient-brand text-white">
+              <span className="grid size-8 place-items-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
                 <Icon size={16} />
               </span>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -71,7 +70,7 @@ export function SourcingHome() {
           ))}
           <Link
             to="/sourcing/new"
-            className="grid min-h-48 place-items-center rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 transition hover:border-violet-400 hover:text-violet-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600 dark:border-white/15 dark:text-slate-400"
+            className="grid min-h-48 place-items-center rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 transition hover:border-violet-400 hover:text-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600 dark:border-white/15 dark:text-slate-400 dark:hover:text-violet-300"
           >
             <span className="flex items-center gap-2 font-medium">
               <Plus size={18} /> {t('สร้างตำแหน่งใหม่', 'New role')}
@@ -86,58 +85,76 @@ export function SourcingHome() {
 function RoleCard({ role }: { role: RoleSpec }) {
   const t = useT()
   const pool = useCandidatePool()
-  const staff = useStaffPool()
   const stages = useSourcing((s) => s.stages)
-  const team = staff.filter((m) => role.teamId && m.team === role.teamId)
-  const stats = useMemo(() => {
-    const scored = pool.map((c) => scoreCandidate(role, c, team).overall)
-    return { strong: scored.filter((x) => x >= 75).length, total: pool.length }
-  }, [pool, role, team])
+  const weighted = weightedTypes(role.roleWeights)
+  const ok = checkWeights(role.roleWeights).ok
+  const withData = pool.filter((c) => c.roleScores).length
   const inPipeline = pool.filter((c) => {
-    const st = stages[pipelineKey(role.id, c.id)]
+    const st = stages[pipelineKey(role.id, c.id)]?.stage
     return st && st !== 'new' && st !== 'declined'
   }).length
-  const job = JOB_LINES.find((j) => j.id === role.jobLine)
   const tm = TEAMS.find((x) => x.id === role.teamId)
-  const mgr = MANAGER_STYLES.find((m) => m.id === role.managerStyle)
+  const mgr = MANAGER_TEMPLATES.find((m) => m.id === role.managerTemplate)
+  const rangeDims = Object.keys(role.contextRanges) as ContextDimId[]
   return (
     <Card className="flex flex-col">
       <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-        {job ? t(job.th, job.en) : t('กำหนดเอง', 'Custom')}
-        {tm && ` · ${t(tm.th, tm.en)}`}
+        {tm ? t(tm.th, tm.en) : t('ไม่ระบุทีม', 'No team set')}
+        {mgr && ` · ${t(mgr.name)}`}
       </div>
       <h3 className="mt-1 text-lg font-semibold">{role.title || t('ตำแหน่งไม่มีชื่อ', 'Untitled role')}</h3>
-      {mgr && (
-        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          {t('หัวหน้า', 'Manager')}: {t(mgr.th, mgr.en)}
+      {weighted.length > 0 && ok ? (
+        <div className="mt-3 space-y-1.5">
+          {weighted.slice(0, 4).map(({ id, weight }) => (
+            <div key={id} className="flex items-center gap-2 text-sm">
+              <RoleCharacter type={id} size={28} showProp={false} />
+              <span className="min-w-0 flex-1 truncate">{t(roleTypeById(id).name)}</span>
+              <span className="tabular text-xs font-semibold text-slate-600 dark:text-slate-300">{weightToPct(weight)}%</span>
+            </div>
+          ))}
         </div>
+      ) : (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-600 dark:border-white/15 dark:text-slate-300">
+          {t('ยังไม่ได้ให้น้ำหนักหน้าที่ แก้ตำแหน่งเพื่อกำหนด', 'Duties not weighted yet. Edit the role to set them')}
+        </p>
       )}
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {role.targets.slice(0, 5).map((tg) => (
-          <Chip key={tg.dim}>
-            {t(dimMeta(tg.dim).th, dimMeta(tg.dim).en)} {tg.center >= 50 ? '↑' : '↓'}
-          </Chip>
-        ))}
+        {rangeDims.slice(0, 3).map((dim) => {
+          const d = CONTEXT_DIMS.find((x) => x.id === dim)!
+          const r = role.contextRanges[dim]!
+          return (
+            <Chip key={dim}>
+              {t(d.name)} {r.min}–{r.max}
+            </Chip>
+          )
+        })}
+        {rangeDims.length === 0 && <Chip>{t('ยังไม่กำหนดช่วงการทำงาน', 'No working ranges yet')}</Chip>}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-2xl bg-slate-900/[0.04] p-2 dark:bg-white/[0.05]">
-          <div className="tabular text-xl font-semibold">{stats.strong}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">{t(`เหมาะ ≥ 75% จาก ${stats.total}`, `fit ≥ 75% of ${stats.total}`)}</div>
+        <div className="rounded-xl border border-slate-200 p-2 dark:border-white/10">
+          <div className="tabular text-xl font-semibold">{pool.length}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{t(`คนในรายการ · มีข้อมูลบทบาท ${withData}`, `people · ${withData} with role data`)}</div>
         </div>
-        <div className="rounded-2xl bg-slate-900/[0.04] p-2 dark:bg-white/[0.05]">
+        <div className="rounded-xl border border-slate-200 p-2 dark:border-white/10">
           <div className="tabular text-xl font-semibold">{inPipeline}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">{t('อยู่ในขั้นตอน', 'in progress')}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{t('กำลังศึกษาเพิ่ม', 'being looked into')}</div>
         </div>
       </div>
+      {role.owner && (
+        <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {t('เจ้าของ', 'Owner')}: {role.owner}
+          {role.reviewedAt && ` · ${t('ทบทวน', 'reviewed')} ${role.reviewedAt}`}
+        </div>
+      )}
       <div className="mt-4 flex gap-2">
         <Button variant="primary" size="sm" className="flex-1" iconRight={ArrowRight} to={`/sourcing/${role.id}`}>
-          {t('ดู shortlist', 'View shortlist')}
+          {t('ดูรายชื่อ', 'View people')}
         </Button>
-        <Button size="sm" icon={Sparkles} to={`/sourcing/${role.id}/edit`}>
-          {t('แก้โปรไฟล์', 'Edit profile')}
+        <Button size="sm" icon={Pencil} to={`/sourcing/${role.id}/edit`}>
+          {t('แก้ตำแหน่ง', 'Edit role')}
         </Button>
       </div>
-      <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-400">
+      <div className="mt-2 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
         <Users size={11} /> {t('ผู้สมัครภายนอก + พนักงานภายในที่เปิดรับการย้ายงาน', 'External applicants + opted-in internal staff')}
       </div>
     </Card>

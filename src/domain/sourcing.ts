@@ -1,47 +1,158 @@
 import { tt, type T } from '@/lib/i18n'
 import type { StaffMember } from './demo'
-import { DIM_CODES, dimMeta } from './dimensions'
-import { ENVIRONMENTS, JOB_LINES, managerFit, roleFit, type ManagerStyleId, type Target } from './fit'
+import { dimMeta } from './dimensions'
+import { ENVIRONMENTS, JOB_LINES, type Target } from './fit'
 import { sayDo, type SayDo } from './insights'
-import type { DimCode, Scores } from './types'
+import {
+  band, compareContext, CONTEXT_DIMS, interestAlignment, MANAGER_TEMPLATES, roleTypeById, ROLE_GROUPS, ROLE_TYPE_IDS, TEAM_TEMPLATES, topGaps, validRange, validWeights,
+  type Band, type ContextDimId, type ContextGap, type GrowthRole, type Range, type RoleTypeId, type RoleWeights,
+} from './roles'
+import type { DimCode } from './types'
 
 /* ------------------------------------------------------------------------------------------------
- * Sourcing: turn a vacancy into a target profile, then rank internal and external candidates
- * against it — the job, the team they would join and the manager they would report to — with
- * reasons and an interview guide aimed at each candidate's watch-outs.
- * Decision support only: nothing here rejects anyone automatically.
+ * Sourcing (WorkFit spec §11, §12.2–12.5, §14): describe a vacancy as duties (role-interest
+ * weights) and acceptable working-preference ranges, then look at internal and external people
+ * one by one. Nothing here ranks, scores overall or rejects anyone: every signal is shown on its
+ * own, unknown stays unknown, and the people deciding use interviews and evidence.
  * ---------------------------------------------------------------------------------------------- */
+
+export type ManagerTemplateId = (typeof MANAGER_TEMPLATES)[number]['id']
+export type TeamTemplateId = (typeof TEAM_TEMPLATES)[number]['id']
 
 export interface RoleSpec {
   id: string
   title: string
+  /** What the person will actually do, in the owner's words. */
+  duties: string
+  /** Who defined the weights and ranges and answers for them. */
+  owner: string
+  /** yyyy-mm-dd the owner last reviewed weights and ranges; null = not reviewed yet. */
+  reviewedAt: string | null
+  /** Duties as role-interest weights: ≥ 0, sum exactly 1. `{}` = duties not weighted yet. */
+  roleWeights: RoleWeights
+  /** Acceptable working-preference ranges (0–100, step 5). */
+  contextRanges: Partial<Record<ContextDimId, Range>>
+  managerTemplate?: ManagerTemplateId
+  teamTemplate?: TeamTemplateId
+  /** Team the person would join (internal staff already in it are not listed). */
+  teamId?: string
+  /** Optional style notes for the interview: conversation material only, never a score. */
+  targets: Target[]
   jobLine?: string
   env?: string
-  managerStyle?: ManagerStyleId
-  teamId?: string
-  targets: Target[]
   createdAt: string
   note?: string
 }
 
+/* ------------------------------------------- Stages -------------------------------------------- */
+
+/** A stage is a note about what to look into next, not a pass or a fail. */
 export type Stage = 'new' | 'screen' | 'interview' | 'offer' | 'hired' | 'declined'
 
 export const STAGES: { id: Stage; th: string; en: string }[] = [
-  { id: 'new', th: 'ใหม่', en: 'New' },
-  { id: 'screen', th: 'คัดกรอง', en: 'Screening' },
-  { id: 'interview', th: 'สัมภาษณ์', en: 'Interview' },
+  { id: 'new', th: 'ยังไม่ได้ดู', en: 'Not reviewed' },
+  { id: 'screen', th: 'ศึกษาเพิ่ม', en: 'Look into further' },
+  { id: 'interview', th: 'นัดคุย', en: 'Conversation' },
   { id: 'offer', th: 'เสนองาน', en: 'Offer' },
   { id: 'hired', th: 'รับแล้ว', en: 'Hired' },
-  { id: 'declined', th: 'ไม่ไปต่อ', en: 'Declined' },
+  { id: 'declined', th: 'ไม่ไปต่อ (ตัดสินโดยคน)', en: 'Not continuing (human decision)' },
 ]
+
+export interface StageEntry {
+  stage: Stage
+  reason: string
+  /** ISO timestamp of the last change; '' for entries migrated from before reasons were stored. */
+  at: string
+}
 
 export interface Candidate extends StaffMember {
   external: boolean
   source?: T
   currentRole?: T
+  /** ISO date the person applied (external) or was added to the pool (internal). */
+  appliedAt?: string
 }
 
-/** Start a role from a job-line template, optionally blended with an environment's demands. */
+/* ----------------------------------------- Role weights ---------------------------------------- */
+
+export interface WeightCheck {
+  ok: boolean
+  /** Sum in percent, rounded to 0.1. */
+  totalPct: number
+  errors: T[]
+}
+
+/** Spec T-29: show the problem, never normalise silently. */
+export const checkWeights = (w: RoleWeights): WeightCheck => {
+  const errors: T[] = []
+  const entries = Object.entries(w) as [RoleTypeId, number | undefined][]
+  const finiteSum = entries.reduce((s, [, v]) => s + (v !== undefined && Number.isFinite(v) ? v : 0), 0)
+  const totalPct = Math.round(finiteSum * 1000) / 10
+  if (entries.length === 0) errors.push(tt('ยังไม่ได้กำหนดน้ำหนักหน้าที่ เลือกอย่างน้อย 1 บทบาท', 'Duties are not weighted yet. Pick at least one role type'))
+  for (const [id, v] of entries) {
+    if (v === undefined || !Number.isFinite(v)) errors.push(tt(`ใส่น้ำหนักของ “${roleTypeById(id).name.th}”`, `Enter a weight for “${roleTypeById(id).name.en}”`))
+    else if (v < 0) errors.push(tt(`น้ำหนักของ “${roleTypeById(id).name.th}” ต้องไม่ติดลบ`, `The weight for “${roleTypeById(id).name.en}” cannot be negative`))
+  }
+  if (entries.length > 0 && Math.abs(finiteSum - 1) >= 1e-6)
+    errors.push(tt(`น้ำหนักรวมต้องเท่ากับ 100% พอดี (ตอนนี้ ${totalPct}%) ระบบจะไม่ปรับให้เอง`, `Weights must add up to exactly 100% (now ${totalPct}%). Workfit will not adjust them for you`))
+  return { ok: errors.length === 0 && validWeights(w), totalPct, errors }
+}
+
+/** UI works in percent; storage in fractions. Rounded to avoid 0.30000000000000004. */
+export const pctToWeight = (pct: number) => Math.round(pct * 100) / 10000
+export const weightToPct = (w: number) => Math.round(w * 10000) / 100
+
+/**
+ * "Start from a type": 60% the type, 40% its sibling in the same family. A starting point only —
+ * the owner must review and change it to match the real duties before saving.
+ */
+export const weightsFromType = (id: RoleTypeId): RoleWeights => {
+  const group = ROLE_GROUPS.find((g) => g.types.includes(id))!
+  const sibling = group.types.find((x) => x !== id)!
+  return { [id]: 0.6, [sibling]: 0.4 }
+}
+
+/** Weighted types, largest first (type index breaks ties). */
+export const weightedTypes = (w: RoleWeights): { id: RoleTypeId; weight: number }[] =>
+  ROLE_TYPE_IDS.filter((id) => (w[id] ?? 0) > 0)
+    .map((id) => ({ id, weight: w[id]! }))
+    .sort((a, b) => b.weight - a.weight || ROLE_TYPE_IDS.indexOf(a.id) - ROLE_TYPE_IDS.indexOf(b.id))
+
+/* ----------------------------------------- Context ranges -------------------------------------- */
+
+export const checkRanges = (ranges: Partial<Record<ContextDimId, Range>>): T[] =>
+  (Object.entries(ranges) as [ContextDimId, Range][]).flatMap(([dim, r]) => {
+    const d = CONTEXT_DIMS.find((x) => x.id === dim)!
+    if (!validRange(r)) return [tt(`ช่วงของ “${d.name.th}” ไม่ถูกต้อง (ต่ำสุดต้องไม่เกินสูงสุด และอยู่ใน 0–100)`, `The range for “${d.name.en}” is invalid (min must not exceed max, within 0–100)`)]
+    if (r.min % 5 !== 0 || r.max % 5 !== 0) return [tt(`ช่วงของ “${d.name.th}” ต้องปรับทีละ 5`, `The range for “${d.name.en}” must use steps of 5`)]
+    return []
+  })
+
+/** Templates pre-fill a point range at the template anchor; the owner widens it as needed. */
+export const managerTemplateRange = (id: ManagerTemplateId): Range => {
+  const a = MANAGER_TEMPLATES.find((m) => m.id === id)!.anchor
+  return { min: a, max: a }
+}
+export const teamTemplateRange = (id: TeamTemplateId): Range => {
+  const a = TEAM_TEMPLATES.find((m) => m.id === id)!.anchor
+  return { min: a, max: a }
+}
+
+/** Everything that blocks saving a role, in the order the owner should fix it. */
+export const roleErrors = (r: RoleSpec): T[] => {
+  const out: T[] = []
+  if (!r.title.trim()) out.push(tt('ใส่ชื่อตำแหน่ง', 'Enter a role title'))
+  if (!r.duties.trim()) out.push(tt('เขียนหน้าที่จริงของตำแหน่ง', 'Describe the real duties of the role'))
+  out.push(...checkWeights(r.roleWeights).errors)
+  out.push(...checkRanges(r.contextRanges))
+  if (!r.owner.trim()) out.push(tt('ระบุเจ้าของข้อมูลตำแหน่ง (ผู้ทบทวน)', 'Name the owner who reviewed this role'))
+  if (!r.reviewedAt) out.push(tt('ระบุวันที่ทบทวน', 'Set the review date'))
+  return out
+}
+
+/* --------------------------------------- Style notes (optional) -------------------------------- */
+
+/** Style notes from a job-area template, optionally with an environment's notes. Conversation material only. */
 export const targetsFromTemplate = (jobLine?: string, env?: string): Target[] => {
   const base = JOB_LINES.find((j) => j.id === jobLine)?.targets ?? []
   const extra = ENVIRONMENTS.find((e) => e.id === env)?.targets ?? []
@@ -50,31 +161,7 @@ export const targetsFromTemplate = (jobLine?: string, env?: string): Target[] =>
   return out.map((t) => ({ ...t }))
 }
 
-/**
- * "Clone your best people": targets from 2+ strong performers. Keep only dimensions where the
- * benchmarks agree (low spread) and lean clearly to one side — those are what the role really asks for.
- */
-export const targetsFromBenchmarks = (people: Pick<StaffMember, 'scores'>[]): Target[] => {
-  if (people.length < 2) return []
-  const rows = DIM_CODES.map((dim) => {
-    const xs = people.map((p) => p.scores[dim])
-    const mean = xs.reduce((a, b) => a + b, 0) / xs.length
-    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length)
-    return { dim, mean, sd, lean: Math.abs(mean - 50) }
-  })
-  return rows
-    .filter((r) => r.sd <= 16 && r.lean >= 12)
-    .sort((a, b) => b.lean - a.lean)
-    .slice(0, 6)
-    .map((r) => ({
-      dim: r.dim,
-      center: Math.round(r.mean),
-      half: Math.round(Math.max(10, r.sd + 6)),
-      weight: (r.lean >= 25 ? 3 : 2) as Target['weight'],
-    }))
-}
-
-/** What the team is missing, as targets a new hire could fill. */
+/** What the team is missing, as style notes worth talking about. */
 export const targetsFromTeamGaps = (team: StaffMember[]): Target[] => {
   const out: Target[] = []
   const none = (dim: DimCode, test: (v: number) => boolean) => !team.some((m) => test(m.scores[dim]))
@@ -86,77 +173,94 @@ export const targetsFromTeamGaps = (team: StaffMember[]): Target[] => {
   return out
 }
 
-/* ------------------------------------------- Scoring ------------------------------------------- */
+/* ------------------------------------------- Filters ------------------------------------------- */
 
-export interface TeamFit {
-  fit: number
-  fills: T[]
-  risks: T[]
+export interface CandidateFilters {
+  /** Primary OR secondary role type is one of these. `no_dominant` and no-data never match. */
+  types: RoleTypeId[]
+  growth: GrowthRole[]
+  /** Per dimension: the person's band is one of these. Each dimension is its own AND group. */
+  bands: Partial<Record<ContextDimId, Band[]>>
 }
 
-const GAP_TESTS: { dim: DimCode; need: (v: number) => boolean; text: T }[] = [
-  { dim: 'MP', need: (v) => v <= 40, text: tt('เติมคนสายเป๊ะที่ทีมยังไม่มี', 'Adds the precision the team lacks') },
-  { dim: 'KJ', need: (v) => v <= 40, text: tt('เติมคนกล้าพูดตรงที่ทีมยังไม่มี', 'Adds a voice that speaks up') },
-  { dim: 'O', need: (v) => v >= 60, text: tt('เติมคนสายไอเดียใหม่ที่ทีมยังไม่มี', 'Adds the new ideas the team lacks') },
-  { dim: 'LD', need: (v) => v >= 60, text: tt('เติมคนพร้อมนำที่ทีมยังไม่มี', 'Adds someone ready to lead') },
-  { dim: 'PC', need: (v) => v <= 40, text: tt('เติมคนสายรอบคอบที่ทีมยังไม่มี', 'Adds a careful thinker') },
-]
+export const emptyFilters = (): CandidateFilters => ({ types: [], growth: [], bands: {} })
 
-/** Complement, not clone: reward filling the team's blind spots, flag joining a clique or a power clash. */
-export const teamFit = (c: Pick<StaffMember, 'scores' | 'persona'>, team: StaffMember[]): TeamFit => {
-  if (!team.length) return { fit: 70, fills: [], risks: [] }
-  const fills: T[] = []
-  const risks: T[] = []
-  for (const g of GAP_TESTS) {
-    const teamHas = team.some((m) => g.need(m.scores[g.dim]))
-    if (!teamHas && g.need(c.scores[g.dim])) fills.push(g.text)
+export const activeFilterCount = (f: CandidateFilters) =>
+  (f.types.length ? 1 : 0) + (f.growth.length ? 1 : 0) + Object.values(f.bands).filter((b) => b && b.length).length
+
+/** OR within a group, AND across groups (spec T-20). */
+export const matchesFilters = (c: Pick<Candidate, 'roleClass' | 'growthRoles' | 'context'>, f: CandidateFilters): boolean => {
+  if (f.types.length) {
+    const rc = c.roleClass
+    if (!rc || rc.state === 'no_dominant') return false
+    const mine = [rc.primary, rc.secondary].filter((x): x is RoleTypeId => x !== null)
+    if (!mine.some((x) => f.types.includes(x))) return false
   }
-  const sameFamily = team.filter((m) => m.persona.family === c.persona.family).length
-  if (sameFamily / team.length >= 0.5) risks.push(tt('สไตล์ซ้ำกับคนส่วนใหญ่ในทีม อาจเพิ่มจุดบอดเดิม', 'Same style as most of the team; may deepen existing blind spots'))
-  const cliqueish = (s: Scores) => (s.BK + s.SN + s.SK + (100 - s.H)) / 4 >= 60
-  if (cliqueish(c.scores) && team.filter((m) => cliqueish(m.scores)).length >= 2)
-    risks.push(tt('ผูกกลุ่มสูงเหมือนกลุ่มเดิมในทีม เสี่ยงแบ่งพรรคแบ่งพวก', 'Strong in-group pull like an existing clique; risk of factions'))
-  const dominant = (s: Scores) => (s.LD + (100 - s.KJ) + (100 - s.A) + (100 - s.H)) / 4 >= 62
-  const quiet = (s: Scores) => (s.KJ + s.FC + (100 - s.X) + (100 - s.E)) / 4 >= 60
-  if (dominant(c.scores) && team.some((m) => quiet(m.scores))) risks.push(tt('พลังนำสูง ขณะที่ทีมมีคนไม่กล้าส่งเสียง ต้องดูแลเรื่องการรับฟัง', 'Strong drive to lead in a team with quiet members; watch listening'))
-  if (team.filter((m) => m.scores.LD >= 70).length >= 2 && c.scores.LD >= 70) risks.push(tt('ทีมมีคนอยากนำหลายคนแล้ว อาจชิงบทบาทกัน', 'The team already has several would-be leaders; possible role clash'))
-  const fit = Math.max(0, Math.min(100, 65 + fills.length * 12 - risks.length * 12))
-  return { fit, fills, risks }
+  if (f.growth.length && !c.growthRoles.some((g) => f.growth.includes(g))) return false
+  for (const [dim, wanted] of Object.entries(f.bands) as [ContextDimId, Band[] | undefined][]) {
+    if (wanted && wanted.length && !wanted.includes(band(c.context[dim]))) return false
+  }
+  return true
 }
 
-export interface CandidateScore {
-  overall: number
-  role: ReturnType<typeof roleFit>
-  team?: TeamFit
-  manager?: { fit: number; notes: { text: T; good: boolean }[] }
+/** Toggle a value inside a filter group. */
+export const toggleIn = <X,>(xs: X[], x: X): X[] => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x])
+
+/* -------------------------------------------- Sorting ------------------------------------------ */
+
+export type SortBy = 'name' | 'date'
+
+/** Sample data has no application dates; give each sample person a stable one so date sorting works. */
+const SAMPLE_DAY0 = Date.UTC(2026, 9, 22)
+export const appliedAtOf = (c: Pick<Candidate, 'id' | 'appliedAt'>): string => {
+  if (c.appliedAt) return c.appliedAt
+  let h = 0
+  for (const ch of c.id) h = (h * 31 + ch.charCodeAt(0)) % 997
+  return new Date(SAMPLE_DAY0 - (h % 45) * 86_400_000).toISOString().slice(0, 10)
+}
+
+/** Name (Thai collation) or newest first. Never by any score. */
+export const sortCandidates = <C extends Pick<Candidate, 'id' | 'name' | 'appliedAt'>>(list: C[], by: SortBy): C[] => {
+  const byName = (a: C, b: C) => a.name.localeCompare(b.name, 'th') || a.id.localeCompare(b.id)
+  return [...list].sort(by === 'name' ? byName : (a, b) => appliedAtOf(b).localeCompare(appliedAtOf(a)) || byName(a, b))
+}
+
+/* -------------------------------------------- Compare ------------------------------------------ */
+
+export const COMPARE_MAX = 3
+export const COMPARE_MIN = 2
+
+/** Spec T-21: a 4th person is refused and the existing selection stays as it was. */
+export const toggleCompare = (sel: string[], id: string, max = COMPARE_MAX): { selection: string[]; refused: boolean } => {
+  if (sel.includes(id)) return { selection: sel.filter((x) => x !== id), refused: false }
+  if (sel.length >= max) return { selection: sel, refused: true }
+  return { selection: [...sel, id], refused: false }
+}
+
+/* ----------------------------------------- Per-person view ------------------------------------- */
+
+export interface CandidateView {
+  /** "Interest matches the defined duties X/100"; null = no role data or duties not weighted. */
+  alignment: number | null
+  gaps: ContextGap[]
+  /** Up to 3 largest known context distances; `discuss` = worth agreeing (> 25). */
+  topGaps: ContextGap[]
   sayDo: SayDo
   interview: InterviewQuestion[]
 }
 
-export const scoreCandidate = (role: RoleSpec, c: Candidate, teamMembers: StaffMember[]): CandidateScore => {
-  const r = roleFit(c.scores, { id: role.id, th: role.title, en: role.title, targets: role.targets })
-  const team = role.teamId ? teamFit(c, teamMembers.filter((m) => m.id !== c.id)) : undefined
-  const mgr = role.managerStyle ? managerFit(c.scores).find((m) => m.style === role.managerStyle) : undefined
-  const parts: [number, number][] = [[r.fit, 0.6]]
-  if (team) parts.push([team.fit, 0.2])
-  if (mgr) parts.push([mgr.fit, 0.2])
-  const totalW = parts.reduce((s, [, w]) => s + w, 0)
-  const overall = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0) / totalW)
+export const describeCandidate = (role: RoleSpec, c: Candidate): CandidateView => {
+  const alignment = c.roleScores ? interestAlignment(c.roleScores, role.roleWeights) : null
+  const gaps = compareContext(c.context, role.contextRanges)
   // External candidates have no 360 yet: delivery stays self-reported until references are checked.
   const sd = sayDo(c.scores, c.external ? undefined : c.observedDelivery)
-  return {
-    overall,
-    role: r,
-    team,
-    manager: mgr ? { fit: mgr.fit, notes: mgr.notes } : undefined,
-    sayDo: sd,
-    interview: interviewGuide(role, c.scores, sd),
-  }
+  return { alignment, gaps, topGaps: topGaps(gaps), sayDo: sd, interview: interviewGuide(role, c, gaps, sd) }
 }
 
 /* ---------------------------------------- Interview guide -------------------------------------- */
 
 export interface InterviewQuestion {
+  kind: 'duty' | 'missing' | 'agree' | 'evidence' | 'style'
   dim?: DimCode
   why: T
   ask: T
@@ -166,135 +270,153 @@ export interface InterviewQuestion {
 type Probe = { ask: T; listen: T }
 const pr = (ask: [string, string], listen: [string, string]): Probe => ({ ask: tt(...ask), listen: tt(...listen) })
 
-/** Behavioural questions keyed by "the role needs this pole but the candidate leans the other way". */
-const PROBES: Partial<Record<DimCode, { high: Probe; low: Probe }>> = {
+/** Neutral questions for a working preference we know nothing about yet. */
+const CONTEXT_ASK: Record<ContextDimId, Probe> = {
+  autonomy: pr(['งานแบบไหนที่คุณอยากได้แนวทางชัด และแบบไหนที่อยากเลือกวิธีเอง', 'Which work do you want clear guidance on, and which would you rather do your own way?'], ['ตัวอย่างจริงทั้งสองแบบ ไม่มีคำตอบถูกผิด', 'Real examples of both; there is no right answer']),
+  change: pr(['เล่าช่วงที่งานเปลี่ยนบ่อย และช่วงที่งานคงที่ ช่วงไหนคุณทำงานได้ดีกว่า เพราะอะไร', 'Describe a period of frequent change and a steady one. Which suited your work better, and why?'], ['สิ่งที่ช่วยให้เขาทำงานได้ดีในแต่ละแบบ', 'What helped them work well in each']),
+  disagreement: pr(['เวลาไม่เห็นด้วยกับแผนของทีม ปกติคุณบอกอย่างไร และเมื่อไร', 'When you disagree with the team’s plan, how and when do you usually say so?'], ['วิธีที่เขาใช้จริง และสิ่งที่ทีมควรรู้', 'The way they actually do it, and what the team should know']),
+  collaboration: pr(['ในหนึ่งสัปดาห์ คุณอยากมีเวลาทำงานลึกคนเดียวกับเวลาคุยร่วมกันสัดส่วนประมาณไหน', 'In a typical week, how would you like to split deep solo work and time working together?'], ['สัดส่วนที่เขาบอกเอง ไม่ใช่ที่เราเดา', 'The split in their own words, not our guess']),
+  experimentation: pr(['เมื่อได้งานที่ยังไม่มีใครทำมาก่อน คุณเริ่มจากตรวจสอบก่อน หรือทดลองเล็ก ๆ ก่อน', 'With work nobody has done before, do you start by checking first or by trying something small?'], ['ตัวอย่างการเริ่มงานจริง', 'A real example of how they started']),
+  leadership_interest: pr(['ในอีก 1–2 ปี คุณอยากลึกในงานเฉพาะด้าน หรืออยากมีบทบาทกำหนดทิศทางและช่วยทีมมากขึ้น', 'In 1–2 years, would you rather go deeper in specialist work or take more part in setting direction and helping the team?'], ['ความสนใจของเขาเอง ไม่ใช่ความสามารถ', 'Their own interest, not ability']),
+}
+
+/** Behavioural questions for a style note the role owner wrote (asked of everyone, whatever their profile). */
+const STYLE_PROBES: Partial<Record<DimCode, { high: Probe; low: Probe }>> = {
   KJ: {
-    low: pr(['เล่าครั้งที่คุณไม่เห็นด้วยกับหัวหน้าหรือรุ่นพี่ คุณพูดอะไร และผลเป็นอย่างไร', 'Tell me about a time you disagreed with a boss or senior colleague. What did you say, and what happened?'], ['พูดออกมาจริงหรือไม่ ใช้เหตุผลและจังหวะเหมาะสมหรือเปล่า', 'Did they actually speak up, with sound reasons and good timing?']),
+    low: pr(['เล่าครั้งที่คุณไม่เห็นด้วยกับหัวหน้าหรือรุ่นพี่ คุณพูดอะไร และผลเป็นอย่างไร', 'Tell me about a time you disagreed with a boss or senior colleague. What did you say, and what happened?'], ['สิ่งที่ทำจริง เหตุผลและจังหวะ', 'What they actually did, their reasons and timing']),
     high: pr(['เล่าครั้งที่ต้องรักษาความสัมพันธ์กับลูกค้าหรือผู้ใหญ่ แม้คุณไม่เห็นด้วย', 'Tell me about a time you protected a relationship with a customer or senior person even though you disagreed.'], ['ถนอมน้ำใจได้โดยไม่เสียงาน', 'Kept goodwill without hurting the work']),
   },
-  E: {
-    high: pr(['เล่าวันที่กดดันที่สุดในงานที่ผ่านมา คุณจัดการตัวเองและงานอย่างไร', 'Describe your most stressful day at work. How did you manage yourself and the work?'], ['สงบ ตั้งลำดับความสำคัญได้ ไม่โทษคนอื่น', 'Stayed calm, prioritised, did not blame others']),
-    low: pr(['งานแบบไหนที่ทำให้คุณรู้สึกสบายใจและทำได้ดีที่สุด', 'What kind of work lets you feel at ease and do your best?'], ['ความต้องการสภาพแวดล้อมที่มั่นคง', 'Need for a stable environment']),
-  },
-  X: {
-    high: pr(['ถ้าต้องเริ่มคุยกับคนที่ไม่รู้จักวันละหลายสิบคน คุณจะทำอย่างไรให้มีพลังตลอดวัน', 'If you had to start conversations with dozens of strangers a day, how would you keep your energy up?'], ['มีวิธีจริง ไม่ใช่แค่บอกว่าชอบคน', 'Real methods, not just “I like people”']),
-    low: pr(['เล่างานที่ต้องใช้สมาธิคนเดียวนาน ๆ คุณทำได้ดีแค่ไหน', 'Tell me about work that needed long solo focus. How well did you do?'], ['โฟกัสได้ต่อเนื่องโดยไม่ต้องมีคนกระตุ้น', 'Sustained focus without outside push']),
-  },
-  A: {
-    high: pr(['เล่าครั้งที่ขัดแย้งกับเพื่อนร่วมงาน คุณคลี่คลายอย่างไร', 'Tell me about a conflict with a colleague. How did you resolve it?'], ['มองมุมอีกฝ่าย หาทางออกร่วม', "Saw the other side and found a shared solution"]),
-    low: pr(['เล่าครั้งที่ต้องยืนยันเรื่องที่ถูกต้องแม้คนอื่นไม่พอใจ', 'Tell me about a time you stood firm on the right thing even though others were unhappy.'], ['กล้ายืนหยัดอย่างมีเหตุผล', 'Stood firm with good reasons']),
-  },
   C: {
-    high: pr(['งานที่มีรายละเอียดมากที่สุดที่คุณเคยรับผิดชอบคืออะไร คุณตรวจความถูกต้องอย่างไร', 'What is the most detailed work you have owned? How did you check it was right?'], ['มีระบบตรวจซ้ำจริง ส่งตรงเวลา', 'A real checking system and on-time delivery']),
+    high: pr(['งานที่มีรายละเอียดมากที่สุดที่คุณเคยรับผิดชอบคืออะไร คุณตรวจความถูกต้องอย่างไร', 'What is the most detailed work you have owned? How did you check it was right?'], ['วิธีตรวจซ้ำที่ใช้จริง', 'A checking method they really used']),
     low: pr(['ถ้าแผนเปลี่ยนทุกวัน คุณจัดการงานอย่างไร', 'If the plan changed every day, how would you manage your work?'], ['ยืดหยุ่นแต่ยังส่งงานได้', 'Flexible yet still delivers']),
   },
   O: {
     high: pr(['ไอเดียใหม่ล่าสุดที่คุณทำให้เกิดขึ้นจริงคืออะไร เริ่มจากตรงไหน', 'What is the latest new idea you actually made happen? Where did you start?'], ['ไอเดียที่ทำจริง ไม่ใช่แค่คิด', 'An idea they delivered, not just imagined']),
     low: pr(['เล่าครั้งที่คุณต้องทำตามวิธีที่พิสูจน์แล้ว ทั้งที่มีคนเสนอวิธีใหม่', 'Tell me about a time you kept to a proven method although someone proposed a new one.'], ['ยึดมาตรฐานโดยไม่ปิดกั้น', 'Upheld standards without shutting ideas down']),
   },
-  H: {
-    high: pr(['เล่าครั้งที่มีคนเสนอทางลัดที่ไม่ถูกต้องให้คุณ คุณทำอย่างไร', 'Tell me about a time someone offered you an improper shortcut. What did you do?'], ['ซื่อตรงสม่ำเสมอ', 'Consistent integrity']),
-    low: pr(['เล่าครั้งที่คุณต่อรองเพื่อผลประโยชน์ของทีม', "Tell me about a time you negotiated for your team's benefit."], ['ต่อรองได้โดยไม่เสียความน่าเชื่อถือ', 'Negotiated without losing credibility']),
-  },
   LD: {
-    high: pr(['เล่าครั้งที่คุณต้องนำทีมโดยไม่มีตำแหน่ง ทำให้คนอื่นตามอย่างไร', 'Tell me about leading without a title. How did you get people to follow?'], ['นำด้วยการกระทำ มีผลลัพธ์ชัด', 'Led by example with clear results']),
-    low: pr(['เล่าครั้งที่คุณช่วยให้หัวหน้าหรือเพื่อนประสบความสำเร็จ', 'Tell me about a time you helped a boss or colleague succeed.'], ['สนับสนุนอย่างเต็มใจ', 'Supported willingly']),
+    high: pr(['เล่าครั้งที่คุณต้องนำทีมโดยไม่มีตำแหน่ง ทำให้คนอื่นตามอย่างไร', 'Tell me about leading without a title. How did you get people to follow?'], ['สิ่งที่ทำและผลลัพธ์', 'What they did and the result']),
+    low: pr(['เล่าครั้งที่คุณช่วยให้หัวหน้าหรือเพื่อนประสบความสำเร็จ', 'Tell me about a time you helped a boss or colleague succeed.'], ['วิธีสนับสนุนที่ใช้จริง', 'How they actually supported']),
   },
   PC: {
-    high: pr(['เล่าครั้งที่ต้องตัดสินใจเร็วทั้งที่ข้อมูลไม่ครบ ผลเป็นอย่างไร', 'Tell me about a fast decision you made with incomplete information. How did it turn out?'], ['กล้าตัดสินใจและรับผิดชอบผล', 'Decided and owned the outcome']),
+    high: pr(['เล่าครั้งที่ต้องตัดสินใจเร็วทั้งที่ข้อมูลไม่ครบ ผลเป็นอย่างไร', 'Tell me about a fast decision you made with incomplete information. How did it turn out?'], ['การตัดสินใจและการรับผิดชอบผล', 'The decision and how they owned the outcome']),
     low: pr(['เล่าครั้งที่การตรวจสอบอย่างละเอียดช่วยกันปัญหาใหญ่ได้', 'Tell me about a time careful checking prevented a big problem.'], ['รอบคอบโดยไม่ช้าเกินไป', 'Careful without being too slow']),
   },
-  CO: {
-    high: pr(['เล่าโปรเจกต์ที่ต้องประสานหลายฝ่าย คุณทำให้ทุกคนไปทางเดียวกันอย่างไร', 'Tell me about a project across many teams. How did you get everyone aligned?'], ['สื่อสารสม่ำเสมอ แก้ความขัดแย้งได้', 'Communicated steadily and resolved friction']),
-    low: pr(['เล่างานที่คุณรับผิดชอบเองตั้งแต่ต้นจนจบ', 'Tell me about work you owned from start to finish.'], ['ทำงานอิสระได้ครบถ้วน', 'Delivered independently and completely']),
-  },
-  ST: {
-    high: pr(['เล่าครั้งที่คุณต้องทำตามขั้นตอนเคร่งครัด ทั้งที่คิดว่ามีวิธีที่ดีกว่า', 'Tell me about following a strict process when you thought there was a better way.'], ['เคารพระบบ และเสนอปรับปรุงอย่างถูกช่องทาง', 'Respected the process and suggested changes properly']),
-    low: pr(['ถ้าได้งานที่ไม่มีใครบอกวิธีทำ คุณเริ่มต้นอย่างไร', 'If you got a task with no instructions at all, how would you start?'], ['สร้างโครงสร้างให้ตัวเองได้', 'Creates their own structure']),
-  },
-  CH: {
-    high: pr(['เล่าการเปลี่ยนแปลงครั้งใหญ่ที่คุณเคยเจอ คุณปรับตัวอย่างไร', 'Tell me about a big change you went through. How did you adapt?'], ['ปรับตัวเร็ว ช่วยคนอื่นปรับด้วย', 'Adapted fast and helped others adapt']),
-    low: pr(['งานประจำที่คุณทำซ้ำได้ดีต่อเนื่องนานที่สุดคืออะไร', 'What routine work have you done well for the longest time?'], ['ความสม่ำเสมอ', 'Consistency']),
-  },
   MP: {
-    low: pr(['เล่าครั้งที่คุณพบข้อผิดพลาดในตัวเลขหรือรายละเอียดก่อนคนอื่น', 'Tell me about a time you caught an error in numbers or details before anyone else.'], ['ความละเอียดจริง มีวิธีตรวจ', 'Real precision and a method to check']),
+    low: pr(['เล่าครั้งที่คุณพบข้อผิดพลาดในตัวเลขหรือรายละเอียดก่อนคนอื่น', 'Tell me about a time you caught an error in numbers or details before anyone else.'], ['วิธีตรวจที่ใช้จริง', 'The method they used to check']),
     high: pr(['ถ้าแผนเปลี่ยนกะทันหันหนึ่งชั่วโมงก่อนเริ่มงาน คุณทำอย่างไร', 'If the plan changed an hour before you started, what would you do?'], ['ยืดหยุ่นโดยไม่ตื่นตระหนก', 'Flexible without panic']),
   },
-  FC: {
-    low: pr(['เล่าครั้งที่ได้รับคำติตรง ๆ ต่อหน้าคนอื่น คุณรู้สึกและทำอย่างไรต่อ', 'Tell me about getting blunt criticism in front of others. How did you feel and what did you do next?'], ['รับ feedback แล้วนำไปปรับ', 'Took the feedback and acted on it']),
-    high: pr(['คุณชอบได้รับ feedback แบบไหน และเคยปรับตัวจาก feedback อย่างไร', 'How do you like to get feedback, and how have you changed because of it?'], ['รู้จักตัวเองและพัฒนาได้', 'Self-aware and able to grow']),
+  CO: {
+    high: pr(['เล่าโปรเจกต์ที่ต้องประสานหลายฝ่าย คุณทำให้ทุกคนไปทางเดียวกันอย่างไร', 'Tell me about a project across many teams. How did you get everyone aligned?'], ['สิ่งที่ทำจริงเพื่อประสาน', 'What they actually did to coordinate']),
+    low: pr(['เล่างานที่คุณรับผิดชอบเองตั้งแต่ต้นจนจบ', 'Tell me about work you owned from start to finish.'], ['ทำงานอิสระได้ครบถ้วน', 'Delivered independently and completely']),
   },
-  SN: {
-    low: pr(['เล่าครั้งที่คุณเสนอความเห็นต่อคนที่อาวุโสกว่ามาก', 'Tell me about sharing your view with someone far more senior.'], ['กล้าเสนอแบบให้เกียรติ', 'Spoke up respectfully']),
-    high: pr(['คุณทำงานกับหัวหน้าที่อายุน้อยกว่าหรือประสบการณ์น้อยกว่าได้อย่างไร', 'How would you work with a boss who is younger or less experienced than you?'], ['ยอมรับโครงสร้างแบบใหม่ได้', 'Can accept a different structure']),
-  },
-  SK: {
-    low: pr(['ถ้าทีมไม่มีกิจกรรมสังสรรค์เลย คุณยังมีแรงจูงใจจากอะไร', 'If the team had no social activities at all, what would still motivate you?'], ['แรงจูงใจจากตัวงาน', 'Motivated by the work itself']),
-    high: pr(['คุณเคยช่วยสร้างบรรยากาศทีมที่ดีอย่างไร', 'How have you helped create a good team atmosphere?'], ['สร้างพลังบวกโดยไม่เสียงาน', 'Positive energy without hurting the work']),
-  },
-  BK: {
-    low: pr(['เล่าครั้งที่คุณต้องตัดสินใจตามกติกา แม้จะขัดใจคนสนิท', 'Tell me about deciding by the rules even though it upset someone close to you.'], ['ยุติธรรมและโปร่งใส', 'Fair and transparent']),
-    high: pr(['อะไรทำให้คุณอยู่กับองค์กรหรือหัวหน้าคนหนึ่งได้นาน', 'What makes you stay a long time with one organisation or boss?'], ['ความผูกพันที่จะช่วยให้อยู่ยาว', 'Loyalty that supports long tenure']),
-  },
-  PR: {
-    high: pr(['นำเสนอผลงานที่คุณภูมิใจที่สุดใน 2 นาที', 'Present the work you are proudest of in two minutes.'], ['สื่อสารชัด มีหลักฐานผลงาน', 'Clear, with evidence of results']),
-    low: pr(['ผลงานไหนที่คุณทำแต่คนอื่นอาจไม่เห็น เล่าเป็นตัวเลขให้ฟังได้ไหม', "What have you achieved that others might not have noticed? Can you put numbers on it?"], ['ผลงานจริงที่วัดได้', 'Real, measurable results']),
+  CH: {
+    high: pr(['เล่าการเปลี่ยนแปลงครั้งใหญ่ที่คุณเคยเจอ คุณปรับตัวอย่างไร', 'Tell me about a big change you went through. How did you adapt?'], ['วิธีปรับตัวที่ใช้จริง', 'How they actually adapted']),
+    low: pr(['งานประจำที่คุณทำซ้ำได้ดีต่อเนื่องนานที่สุดคืออะไร', 'What routine work have you done well for the longest time?'], ['ความสม่ำเสมอ', 'Consistency']),
   },
 }
 
-export const interviewGuide = (role: RoleSpec, s: Scores, sd: SayDo): InterviewQuestion[] => {
+/**
+ * Questions about the duties and about what we do not know yet (spec §14.5). Duty questions come
+ * from the role's weights and are the same for everyone; they never try to confirm a type label.
+ */
+export const interviewGuide = (role: RoleSpec, c: Pick<Candidate, 'roleScores' | 'growthRoles' | 'external'>, gaps: ContextGap[], sd: SayDo): InterviewQuestion[] => {
   const qs: InterviewQuestion[] = []
-  // 1. Probe the biggest gaps between what the role needs and the candidate's profile.
-  const gaps = role.targets
-    .map((t) => ({ t, gap: Math.max(0, Math.abs(s[t.dim] - t.center) - t.half) * t.weight }))
-    .filter((g) => g.gap > 0)
-    .sort((a, b) => b.gap - a.gap)
-  for (const { t } of gaps.slice(0, 3)) {
-    const want = t.center >= 50 ? 'high' : 'low'
-    const probe = PROBES[t.dim]?.[want]
-    if (!probe) continue
-    const meta = dimMeta(t.dim)
-    const pole = want === 'high' ? meta.high : meta.low
+  // 1. The two heaviest duties: ask for real examples of doing that work.
+  for (const { id, weight } of weightedTypes(role.roleWeights).slice(0, 2)) {
+    const rt = roleTypeById(id)
     qs.push({
-      dim: t.dim,
-      why: tt(`งานต้องการ “${pole.th}” แต่โปรไฟล์อยู่ที่ ${s[t.dim]}`, `The role needs “${pole.en}” but the profile is at ${s[t.dim]}`),
-      ...probe,
+      kind: 'duty',
+      why: tt(`หน้าที่ ${weightToPct(weight)}% ของตำแหน่ง: ${rt.tasks.th}`, `${weightToPct(weight)}% of the duties: ${rt.tasks.en}`),
+      ask: tt(`เล่างานจริงที่คุณเคย${rt.tasks.th.split(' ')[0]} คุณทำอะไร ใช้เวลาเท่าไร และผลเป็นอย่างไร`, `Tell me about real work where you were ${rt.tasks.en.split(',')[0].toLowerCase()}. What did you do, how long did it take and what came of it?`),
+      listen: tt(`หลักฐานทักษะที่ต้องตรวจแยก: ${rt.skills.map((s) => s.th).join(', ')} และงานส่วนไหนที่เขาอยากทำมากหรือน้อยลง`, `Evidence for the skills checked separately: ${rt.skills.map((s) => s.en).join(', ')}, and which parts they want more or less of`),
     })
   }
-  // 2. Confirm the strongest match with evidence, so a good self-report isn't taken on trust.
-  const strong = role.targets
-    .filter((t) => Math.abs(s[t.dim] - t.center) <= t.half)
-    .sort((a, b) => b.weight - a.weight)[0]
-  if (strong) {
-    const probe = PROBES[strong.dim]?.[strong.center >= 50 ? 'high' : 'low']
-    const meta = dimMeta(strong.dim)
-    if (probe)
-      qs.push({
-        dim: strong.dim,
-        why: tt(`ยืนยันจุดแข็งหลัก (${meta.th} ${s[strong.dim]}) ด้วยตัวอย่างจริง`, `Confirm the key strength (${meta.en} ${s[strong.dim]}) with a real example`),
-        ...probe,
-      })
+  // 2. Missing information first, before anything else.
+  if (!c.roleScores)
+    qs.push({
+      kind: 'missing',
+      why: tt('ยังไม่มีข้อมูลความสนใจบทบาท', 'No role-interest data yet'),
+      ask: tt('จากหน้าที่ของตำแหน่งนี้ ส่วนไหนที่คุณอยากทำมากที่สุด และส่วนไหนที่อยากทำน้อยที่สุด', 'Of this role’s duties, which part would you most like to do, and which least?'),
+      listen: tt('คำตอบของเขาเอง ไม่ต้องเดาจากบุคลิก', 'Their own answer; do not infer it from personality'),
+    })
+  for (const g of gaps.filter((x) => x.distance === null).slice(0, 2)) {
+    const d = CONTEXT_DIMS.find((x) => x.id === g.dim)!
+    qs.push({ kind: 'missing', why: tt(`ยังไม่มีข้อมูล “${d.name.th}”`, `No data yet on “${d.name.en}”`), ...CONTEXT_ASK[g.dim] })
   }
-  // 3. Talk vs. do: change the interview format, not just the questions.
+  if (!c.growthRoles.length)
+    qs.push({
+      kind: 'missing',
+      why: tt('ยังไม่มีข้อมูลบทบาทที่อยากเติบโต', 'No desired growth roles yet'),
+      ask: tt('ในอีก 1–2 ปี คุณอยากเติบโตไปในบทบาทแบบไหน', 'In 1–2 years, what kind of role would you like to grow into?'),
+      listen: tt('ความสนใจของเขาเอง', 'Their own interest'),
+    })
+  // 3. Working preferences worth agreeing (distance > 25): a conversation, not a mark against them.
+  for (const g of topGaps(gaps).filter((x) => x.discuss)) {
+    const d = CONTEXT_DIMS.find((x) => x.id === g.dim)!
+    qs.push({
+      kind: 'agree',
+      why: tt(`ควรตกลงร่วมกัน: “${d.name.th}” ตำแหน่งนี้อยู่ที่ ${g.range.min}–${g.range.max}`, `Worth agreeing: “${d.name.en}” is ${g.range.min}–${g.range.max} in this role`),
+      ask: tt(`ตำแหน่งนี้ ${d.name.th} อยู่ประมาณ ${g.range.min}–${g.range.max} (${d.low.th} ↔ ${d.high.th}) ถ้าเป็นแบบนี้ อะไรที่จะช่วยให้คุณทำงานได้ดี`, `In this role, ${d.name.en.toLowerCase()} sits around ${g.range.min}–${g.range.max} (${d.low.en} ↔ ${d.high.en}). What would help you work well in that setup?`),
+      listen: tt('สิ่งที่ตกลงกันได้ทั้งสองฝ่าย', 'What both sides can agree on'),
+    })
+  }
+  // 4. Talk vs. do: change the format, not the verdict.
   if (sd.kind === 'talk-over-do')
     qs.push({
-      why: tt('นำเสนอตัวเองได้ดีกว่าหลักฐานผลงาน', 'Presents better than the evidence of results'),
+      kind: 'evidence',
+      why: tt('ขอหลักฐานผลงานควบคู่กับการพูดคุย', 'Ask for evidence of results alongside the conversation'),
       ask: tt('ให้ทำงานตัวอย่างจริง 30–60 นาที และขอผลลัพธ์เป็นตัวเลขจากงานเดิม', 'Set a real 30–60 minute work sample and ask for numbers from past work'),
-      listen: tt('ตรวจอ้างอิงกับหัวหน้าเก่าเรื่องผลงานที่วัดได้ ไม่ใช่บุคลิก', 'Check references with past managers on measurable results, not personality'),
+      listen: tt('ตรวจอ้างอิงเรื่องผลงานที่วัดได้ ไม่ใช่บุคลิก', 'Check references on measurable results, not personality'),
     })
   if (sd.kind === 'quiet-achiever')
     qs.push({
+      kind: 'evidence',
       why: tt('อาจขายตัวเองไม่เก่งในห้องสัมภาษณ์', 'May undersell themselves in an interview'),
       ask: tt('ใช้งานตัวอย่างหรือให้เล่าผลงานทีละขั้น แทนการให้พรีเซนต์ตัวเอง', 'Use a work sample or walk through past work step by step instead of a self-pitch'),
       listen: tt('ดูคุณภาพงานจริง อย่าตัดสินจากความมั่นใจในการพูด', 'Judge the work, not speaking confidence'),
     })
-  return qs.slice(0, 5)
+  // 5. One style note the owner wrote, if any: asked the same way of everyone.
+  const note = [...role.targets].sort((a, b) => b.weight - a.weight).find((x) => STYLE_PROBES[x.dim])
+  if (note) {
+    const want = note.center >= 50 ? 'high' : 'low'
+    const meta = dimMeta(note.dim)
+    const pole = want === 'high' ? meta.high : meta.low
+    qs.push({ kind: 'style', dim: note.dim, why: tt(`โน้ตสไตล์จากเจ้าของตำแหน่ง: “${pole.th}”`, `Style note from the role owner: “${pole.en}”`), ...STYLE_PROBES[note.dim]![want] })
+  }
+  return qs.slice(0, 7)
 }
+
+/* --------------------------------------------- Misc -------------------------------------------- */
+
+export const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export const blankRole = (): RoleSpec => ({
   id: `role-${Date.now().toString(36)}`,
   title: '',
+  duties: '',
+  owner: '',
+  reviewedAt: null,
+  roleWeights: {},
+  contextRanges: {},
   targets: [],
   createdAt: new Date().toISOString(),
 })
 
+/** Fill fields that roles saved before the duty/range model did not have. */
+export const upgradeRole = (r: Partial<RoleSpec> & { id: string; title?: string; managerStyle?: string }): RoleSpec => {
+  const { managerStyle, ...rest } = r
+  const fromStyle: Record<string, ManagerTemplateId> = { directive: 'structured', coach: 'balanced', challenger: 'balanced', family: 'balanced', handsoff: 'autonomous' }
+  return {
+    ...rest,
+    title: r.title ?? '',
+    duties: r.duties ?? r.note ?? '',
+    owner: r.owner ?? '',
+    reviewedAt: r.reviewedAt ?? null,
+    roleWeights: r.roleWeights ?? {},
+    contextRanges: r.contextRanges ?? {},
+    managerTemplate: r.managerTemplate ?? (managerStyle ? fromStyle[managerStyle] : undefined),
+    targets: r.targets ?? [],
+    createdAt: r.createdAt ?? new Date().toISOString(),
+  }
+}

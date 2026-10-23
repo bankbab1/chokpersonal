@@ -177,7 +177,8 @@ const Star = ({ cx, cy, r }: { cx: number; cy: number; r: number }) => {
 
 export interface CharacterProps {
   animal: Animal
-  variant: Variant
+  /** Persona accessories (lead/support, fast/careful). Omit for the plain role characters. */
+  variant?: Variant
   color: string
   soft: string
   size?: number
@@ -188,8 +189,9 @@ export interface CharacterProps {
 export function Character({ animal, variant, color, soft, size = 160, className, title }: CharacterProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const art = ANIMALS[animal]
-  const lead = variant[0] === 'L'
-  const fast = variant[1] === 'F'
+  const lead = variant?.[0] === 'L'
+  const fast = variant?.[1] === 'F'
+  const careful = variant?.[1] === 'C'
   const eyes = art.eyes
   return (
     <svg viewBox="0 0 200 200" width={size} height={size} className={className} role="img" aria-label={title ?? animal}>
@@ -217,14 +219,14 @@ export function Character({ animal, variant, color, soft, size = 160, className,
         <Eye x={100 - eyes.dx} y={eyes.y} r={eyes.r} />
         <Eye x={100 + eyes.dx} y={eyes.y} r={eyes.r} />
         <Cheeks y={eyes.y + 16} dx={eyes.dx + 10} />
-        {!fast && (
+        {careful && (
           <g fill="none" stroke={INK} strokeWidth="3">
             <circle cx={100 - eyes.dx} cy={eyes.y} r={eyes.r + 8} />
             <circle cx={100 + eyes.dx} cy={eyes.y} r={eyes.r + 8} />
             <path d={`M${100 - eyes.dx + eyes.r + 8} ${eyes.y}h${2 * (eyes.dx - eyes.r - 8)}`} />
           </g>
         )}
-        {lead ? (
+        {!variant ? null : lead ? (
           <g>
             <circle cx="100" cy="174" r="14" fill="#facc15" stroke="#fff" strokeWidth="3" />
             <Star cx={100} cy={174.5} r={8} />

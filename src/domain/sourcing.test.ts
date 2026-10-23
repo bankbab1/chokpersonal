@@ -1,72 +1,188 @@
-import { DEMO_CANDIDATES, DEMO_STAFF } from './demo'
+import { DEMO_CANDIDATES, roleFields } from './demo'
 import { JOB_LINES } from './fit'
+import { classify, emptyContext, ROLE_TYPE_IDS, type RoleScores, type RoleTypeId } from './roles'
 import { assignPersona, emptyScores } from './scoring'
-import { interviewGuide, scoreCandidate, targetsFromBenchmarks, targetsFromTeamGaps, targetsFromTemplate, teamFit, type Candidate, type RoleSpec } from './sourcing'
+import {
+  checkRanges, checkWeights, describeCandidate, emptyFilters, interviewGuide, matchesFilters, pctToWeight, roleErrors, sortCandidates, targetsFromTeamGaps, toggleCompare, upgradeRole, weightsFromType,
+  type Candidate, type RoleSpec,
+} from './sourcing'
+import { migrateSourcing } from '@/store/sourcing'
 import { energy, fourLetter, topStrengths, workfitId, workStyle } from './styles'
 import { sayDo } from './insights'
 import type { Scores } from './types'
 
-const person = (patch: Partial<Scores>): Candidate => {
+const person = (patch: Partial<Scores> = {}, extra: Partial<Candidate> = {}): Candidate => {
   const scores = { ...emptyScores(), ...patch }
   return {
     id: 'x', name: 'x', team: '', role: { th: '', en: '' }, years: 1, openToMove: true, scores,
-    persona: assignPersona(scores), observedDelivery: 0, external: true,
+    persona: assignPersona(scores), ...roleFields(scores, 1), observedDelivery: 0, external: true, ...extra,
   }
 }
 
+const flat = (v: number): RoleScores => Object.fromEntries(ROLE_TYPE_IDS.map((id) => [id, v])) as RoleScores
+const withTop = (a: RoleTypeId, b: RoleTypeId): RoleScores => ({ ...flat(30), [a]: 90, [b]: 80 })
+
 const role = (patch: Partial<RoleSpec> = {}): RoleSpec => ({
-  id: 'r', title: 'Test role', targets: targetsFromTemplate('finance'), createdAt: '', ...patch,
+  id: 'r', title: 'Test role', duties: 'Do things', owner: 'Owner', reviewedAt: '2026-10-01',
+  roleWeights: { driver: 0.4, carer: 0.3, organizer: 0.3 }, contextRanges: {}, targets: [], createdAt: '', ...patch,
 })
 
-describe('role profiles', () => {
+describe('role weights (T-29)', () => {
+  it('accepts weights that add up to exactly 100%', () => {
+    expect(checkWeights({ driver: 0.4, carer: 0.3, organizer: 0.3 }).ok).toBe(true)
+    expect(checkWeights({ driver: pctToWeight(33.3), carer: pctToWeight(33.3), organizer: pctToWeight(33.4) }).ok).toBe(true)
+  })
+
+  it('rejects a total that is not 100% and never normalises', () => {
+    const w = { driver: 0.5, carer: 0.3 }
+    const c = checkWeights(w)
+    expect(c.ok).toBe(false)
+    expect(c.totalPct).toBe(80)
+    expect(c.errors.some((e) => e.en.includes('100%'))).toBe(true)
+    expect(w).toEqual({ driver: 0.5, carer: 0.3 })
+  })
+
+  it('rejects negative, blank and empty weights', () => {
+    expect(checkWeights({ driver: 1.2, carer: -0.2 }).ok).toBe(false)
+    expect(checkWeights({ driver: NaN }).ok).toBe(false)
+    expect(checkWeights({}).ok).toBe(false)
+  })
+
+  it('pre-fills from a type with a valid starting point', () => {
+    expect(weightsFromType('analyst')).toEqual({ analyst: 0.6, guardian: 0.4 })
+    expect(checkWeights(weightsFromType('analyst')).ok).toBe(true)
+  })
+
+  it('blocks saving without owner, review date or valid ranges', () => {
+    expect(roleErrors(role())).toEqual([])
+    expect(roleErrors(role({ owner: '' }))).toHaveLength(1)
+    expect(roleErrors(role({ reviewedAt: null }))).toHaveLength(1)
+    expect(checkRanges({ autonomy: { min: 70, max: 30 } })).toHaveLength(1)
+    expect(checkRanges({ autonomy: { min: 20, max: 33 } })).toHaveLength(1)
+    expect(checkRanges({ autonomy: { min: 20, max: 20 } })).toEqual([])
+  })
+})
+
+describe('no overall score', () => {
+  it('shows interest alignment separately and keeps unknown as null, not 0', () => {
+    const c = person({}, { roleScores: flat(50), roleClass: classify(flat(50)) })
+    expect(describeCandidate(role(), c).alignment).toBe(50)
+    expect(describeCandidate(role(), { ...c, roleScores: null, roleClass: null }).alignment).toBeNull()
+    expect(describeCandidate(role({ roleWeights: {} }), c).alignment).toBeNull()
+    expect(describeCandidate(role(), c)).not.toHaveProperty('overall')
+  })
+
+  it('lists the largest context distances with a worth-agreeing flag', () => {
+    const ctx = emptyContext()
+    ctx.autonomy = { value: 90, confirmed: true }
+    ctx.change = { value: 50, confirmed: true }
+    ctx.collaboration = { value: 10, confirmed: false }
+    const ranges = { autonomy: { min: 20, max: 50 }, change: { min: 40, max: 60 }, collaboration: { min: 60, max: 80 } }
+    const v = describeCandidate(role({ contextRanges: ranges }), person({}, { context: ctx }))
+    expect(v.topGaps.map((g) => g.dim)).toEqual(['autonomy', 'change'])
+    expect(v.topGaps[0].discuss).toBe(true)
+    expect(v.gaps.find((g) => g.dim === 'collaboration')?.distance).toBeNull()
+  })
+
+  it('sorts by name or date, never by score', () => {
+    const a = person({}, { id: 'a', name: 'ข', appliedAt: '2026-10-01' })
+    const b = person({}, { id: 'b', name: 'ก', appliedAt: '2026-10-05' })
+    expect(sortCandidates([a, b], 'name').map((x) => x.id)).toEqual(['b', 'a'])
+    expect(sortCandidates([a, b], 'date').map((x) => x.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('filters (T-19, T-20)', () => {
+  const dom = person({}, { id: 'd', roleScores: withTop('driver', 'carer'), roleClass: classify(withTop('driver', 'carer')), growthRoles: ['project_lead'] })
+  const none = person({}, { id: 'n', roleScores: flat(55), roleClass: classify(flat(55)), growthRoles: ['specialist'] })
+  const noData = person({}, { id: 'z', roleScores: null, roleClass: null, growthRoles: [] })
+
+  it('matches the primary or secondary type', () => {
+    expect(matchesFilters(dom, { ...emptyFilters(), types: ['driver'] })).toBe(true)
+    expect(matchesFilters(dom, { ...emptyFilters(), types: ['carer'] })).toBe(true)
+    expect(matchesFilters(dom, { ...emptyFilters(), types: ['analyst'] })).toBe(false)
+  })
+
+  it('never matches no_dominant or missing data on a type filter', () => {
+    expect(none.roleClass?.state).toBe('no_dominant')
+    for (const id of ROLE_TYPE_IDS) expect(matchesFilters(none, { ...emptyFilters(), types: [id] })).toBe(false)
+    expect(matchesFilters(noData, { ...emptyFilters(), types: [...ROLE_TYPE_IDS] })).toBe(false)
+    expect(matchesFilters(none, emptyFilters())).toBe(true)
+  })
+
+  it('uses OR within a group and AND across groups', () => {
+    const f = { ...emptyFilters(), types: ['analyst', 'driver'] as RoleTypeId[] }
+    expect(matchesFilters(dom, f)).toBe(true)
+    expect(matchesFilters(dom, { ...f, growth: ['specialist'] })).toBe(false)
+    expect(matchesFilters(dom, { ...f, growth: ['specialist', 'project_lead'] })).toBe(true)
+    const ctx = emptyContext()
+    ctx.autonomy = { value: 80, confirmed: true }
+    const p = { ...dom, context: ctx }
+    expect(matchesFilters(p, { ...emptyFilters(), bands: { autonomy: ['high'] } })).toBe(true)
+    expect(matchesFilters(p, { ...emptyFilters(), bands: { autonomy: ['high'], change: ['low'] } })).toBe(false)
+    expect(matchesFilters(p, { ...emptyFilters(), bands: { autonomy: ['high'], change: ['low', 'unknown'] } })).toBe(true)
+  })
+
+  it('only returns people that match', () => {
+    const list = DEMO_CANDIDATES.filter((c) => matchesFilters(c, { ...emptyFilters(), types: ['analyst'] }))
+    expect(list.every((c) => c.roleClass?.primary === 'analyst' || c.roleClass?.secondary === 'analyst')).toBe(true)
+  })
+})
+
+describe('compare (T-21)', () => {
+  it('refuses a 4th person and keeps the selection', () => {
+    let sel: string[] = []
+    for (const id of ['a', 'b', 'c']) sel = toggleCompare(sel, id).selection
+    const r = toggleCompare(sel, 'd')
+    expect(r.refused).toBe(true)
+    expect(r.selection).toEqual(['a', 'b', 'c'])
+    expect(toggleCompare(sel, 'b').selection).toEqual(['a', 'c'])
+  })
+})
+
+describe('interview guide', () => {
+  it('asks about the heaviest duties, the same for everyone', () => {
+    const qs = interviewGuide(role(), person(), [], sayDo(emptyScores()))
+    expect(qs[0].kind).toBe('duty')
+    expect(qs[0].why.en).toContain('40%')
+  })
+
+  it('asks about missing information instead of guessing', () => {
+    const c = person({}, { roleScores: null, roleClass: null, growthRoles: [], context: emptyContext() })
+    const v = describeCandidate(role({ contextRanges: { autonomy: { min: 20, max: 40 } } }), c)
+    expect(v.interview.filter((q) => q.kind === 'missing')).toHaveLength(3)
+  })
+
+  it('asks a polished talker for a work sample', () => {
+    const s = { ...emptyScores(), PR: 92, X: 85, C: 30, H: 40 }
+    const qs = interviewGuide(role(), person(s), [], sayDo(s))
+    expect(qs.some((q) => q.ask.th.includes('งานตัวอย่าง'))).toBe(true)
+  })
+
+  it('describes every demo candidate without throwing', () => {
+    for (const c of DEMO_CANDIDATES) expect(describeCandidate(role(), c).interview.length).toBeGreaterThan(0)
+  })
+})
+
+describe('style notes and migration', () => {
   it('has broad, everyday job areas with examples', () => {
     expect(JOB_LINES.length).toBeGreaterThanOrEqual(15)
     for (const j of JOB_LINES) expect(j.examples).toBeTruthy()
   })
 
-  it('clones only the dimensions top performers share', () => {
-    const a = person({ C: 85, MP: 20, X: 30 })
-    const b = person({ C: 80, MP: 25, X: 75 })
-    const dims = targetsFromBenchmarks([a, b]).map((t) => t.dim)
-    expect(dims).toContain('C')
-    expect(dims).toContain('MP')
-    expect(dims).not.toContain('X') // the benchmarks disagree on extraversion
-  })
-
-  it('turns team blind spots into targets', () => {
+  it('turns team blind spots into style notes', () => {
     const team = [person({ MP: 70 }), person({ MP: 65 })]
     expect(targetsFromTeamGaps(team).map((t) => t.dim)).toContain('MP')
   })
-})
 
-describe('candidate scoring', () => {
-  it('rewards a candidate who fills a team gap', () => {
-    const team = [person({ MP: 70 }), person({ MP: 75 })]
-    expect(teamFit(person({ MP: 15 }), team).fills.length).toBeGreaterThan(0)
-  })
-
-  it('ranks a precise, honest candidate above a careless one for finance', () => {
-    const good = scoreCandidate(role(), person({ C: 88, H: 85, MP: 15, ST: 75 }), [])
-    const weak = scoreCandidate(role(), person({ C: 30, H: 40, MP: 80, ST: 30 }), [])
-    expect(good.overall).toBeGreaterThan(weak.overall)
-  })
-
-  it('writes interview questions aimed at the gaps', () => {
-    const s = { ...emptyScores(), C: 30, H: 85 }
-    const qs = interviewGuide(role(), s, sayDo(s))
-    expect(qs.length).toBeGreaterThan(0)
-    expect(qs[0].dim).toBe('C')
-  })
-
-  it('asks a polished talker for a work sample', () => {
-    const s = { ...emptyScores(), PR: 92, X: 85, C: 30, H: 40 }
-    const qs = interviewGuide(role(), s, sayDo(s))
-    expect(qs.some((q) => q.ask.th.includes('งานตัวอย่าง'))).toBe(true)
-  })
-
-  it('scores every demo candidate without throwing', () => {
-    const team = DEMO_STAFF.filter((m) => m.team === 'fin')
-    for (const c of DEMO_CANDIDATES) expect(scoreCandidate(role({ teamId: 'fin' }), c, team).overall).toBeGreaterThanOrEqual(0)
+  it('upgrades old saved roles and stages without inventing weights', () => {
+    const old = { roles: [{ id: 'old', title: 'Old', targets: [], createdAt: 'x', managerStyle: 'handsoff' }], stages: { 'old:c1': 'interview' }, notes: {} }
+    const m = migrateSourcing(old, 0)
+    expect(m.roles?.[0].roleWeights).toEqual({})
+    expect(m.roles?.[0].contextRanges).toEqual({})
+    expect(m.roles?.[0].managerTemplate).toBe('autonomous')
+    expect(m.stages?.['old:c1']).toEqual({ stage: 'interview', reason: '', at: '' })
+    expect(upgradeRole({ id: 'y' }).reviewedAt).toBeNull()
   })
 })
 
@@ -94,23 +210,6 @@ describe('familiar frames', () => {
     expect(id.code).toBe('ENFJ-A')
     expect(id.temperament.id).toBe('NF')
     expect(id.line.en).toContain('ENFJ-A')
-  })
-})
-
-describe('persona lab', () => {
-  it('recovers well-separated groups and picks k by silhouette', async () => {
-    const { runLab } = await import('./cluster')
-    const { emptyScores: blank } = await import('./scoring')
-    const make = (patch: Partial<Scores>, n: number, jitter: number) =>
-      Array.from({ length: n }, (_, i) => {
-        const s = { ...blank(), ...patch }
-        for (const k of Object.keys(s) as (keyof Scores)[]) s[k] += ((i * 7 + k.length * 3) % (2 * jitter)) - jitter
-        return s
-      })
-    const rows = [...make({ C: 90, ST: 90, MP: 10 }, 20, 4), ...make({ O: 90, CH: 90, ST: 10 }, 20, 4), ...make({ A: 90, X: 90, SK: 90 }, 20, 4)]
-    const lab = runLab(rows, 2, 6)
-    expect(lab.best.k).toBe(3)
-    expect(lab.groups.map((g) => g.size).sort()).toEqual([20, 20, 20])
   })
 })
 
@@ -212,10 +311,25 @@ describe('same type, different people', () => {
     expect(SAMPLE_POPULATION).toHaveLength(600)
     const { people } = mostCommonType(SAMPLE_POPULATION, 10)
     expect(people.length).toBe(10)
-    const r = sameType(people[0], SAMPLE_POPULATION)
+    const r = sameType(people[0], SAMPLE_POPULATION)!
     expect(r.group.length).toBeGreaterThan(5)
     expect(r.workfitCodes).toBeGreaterThan(1)
     const spread = r.widest[0].max - r.widest[0].min
     expect(spread).toBeGreaterThan(40)
+  })
+})
+
+describe('code book', () => {
+  it('lists all 128 codes, each described by the same rules as a real result', async () => {
+    const { CODE_BOOK, codeBookEntry } = await import('./code')
+    expect(CODE_BOOK).toHaveLength(128)
+    expect(new Set(CODE_BOOK.map((e) => e.code)).size).toBe(128)
+    for (const e of CODE_BOOK) {
+      expect(e.wc.code.replace('-', '')).toBe(e.letters.join(''))
+      expect(e.wc.letters.every((l) => l.clear)).toBe(true)
+      expect(e.wc.title.th.length).toBeGreaterThan(0)
+    }
+    expect(codeBookEntry('enlc-hrw')?.code).toBe('ENLC-HRW')
+    expect(codeBookEntry('XXXX-XXX')).toBeNull()
   })
 })
