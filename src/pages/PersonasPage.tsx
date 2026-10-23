@@ -22,7 +22,7 @@ const useMyKey = () => useMyCode()?.slice(0, 4) ?? null
 export function PersonasPage() {
   const { id } = useParams()
   const ch = id ? characterByKey(id) : null
-  return ch ? <CharacterPage ch={ch} /> : <Gallery />
+  return ch ? <CharacterPage key={ch.key} ch={ch} /> : <Gallery />
 }
 
 /* -------------------------------------------- Gallery -------------------------------------------- */
@@ -106,6 +106,34 @@ function Gallery() {
 /* ------------------------------------------ Character page ------------------------------------------ */
 
 type Chapter = { id: string; title: T; body: ReactNode }
+
+function CharacterNavigation({ ch }: { ch: WorkCharacter }) {
+  const t = useT()
+  const index = CHARACTERS.findIndex((c) => c.key === ch.key)
+  const previous = CHARACTERS[(index - 1 + CHARACTERS.length) % CHARACTERS.length]
+  const next = CHARACTERS[(index + 1) % CHARACTERS.length]
+  return (
+    <nav aria-label={t('เปลี่ยนตัวละคร', 'Character navigation')} className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" icon={ArrowLeft} to="/personas" className="-ml-2">
+          {t('ตัวละครทั้งหมด', 'All characters')}
+        </Button>
+        <span className="shrink-0 text-sm tabular-nums text-slate-500 dark:text-slate-400">{index + 1} / {CHARACTERS.length}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[{ character: previous, label: t('ก่อนหน้า', 'Previous'), Icon: ArrowLeft }, { character: next, label: t('ถัดไป', 'Next'), Icon: ArrowRight }].map(({ character, label, Icon }, i) => (
+          <Link key={label} to={`/personas/${character.key}`} aria-label={`${label}: ${t(character.name)}`} className={cn('flex min-h-16 min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600 dark:border-white/15 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]', i === 1 && 'flex-row-reverse text-right')}>
+            <Icon size={18} className="shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span>
+              <span className="block truncate text-sm font-semibold">{t(character.name)}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </nav>
+  )
+}
 
 function CharacterPage({ ch }: { ch: WorkCharacter }) {
   const t = useT()
@@ -192,9 +220,7 @@ function CharacterPage({ ch }: { ch: WorkCharacter }) {
 
   return (
     <div>
-      <Button variant="ghost" size="sm" icon={ArrowLeft} to="/personas" className="-ml-2">
-        {t('ตัวละครทั้งหมด', 'All characters')}
-      </Button>
+      <CharacterNavigation ch={ch} />
 
       {/* Hero */}
       <div className="mt-3 overflow-hidden rounded-[1.75rem]" style={{ background: tint(g.color, 0.88) }}>
@@ -309,6 +335,9 @@ function CharacterPage({ ch }: { ch: WorkCharacter }) {
             </div>
           </section>
         </div>
+      </div>
+      <div className="mt-8 border-t border-slate-200 pt-5 dark:border-white/10">
+        <CharacterNavigation ch={ch} />
       </div>
     </div>
   )
