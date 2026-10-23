@@ -6,7 +6,7 @@ import { DeepResults } from '@/components/charts/DeepResults'
 import { DimensionBars } from '@/components/charts/DimensionBars'
 import { HoroscopeCard } from '@/components/charts/Horoscope'
 import { CharacterHero, CharacterSummaryCard, LifeOutsideWorkCard, PersonalReportCard } from '@/components/charts/CharacterResults'
-import { AgreementsCard, SkillsCard } from '@/components/charts/GrowthCards'
+import { AgreementsCard, SharingCard, SkillsCard } from '@/components/charts/GrowthCards'
 import { ContextCard, ExploreCard, ManagerTeamCard, MyDataCard, RoleScoresCard, SectionTitle } from '@/components/charts/RoleResults'
 import { SameTypeCard } from '@/components/charts/SameType'
 import { SayDoMeter } from '@/components/charts/SayDoMeter'
@@ -339,6 +339,7 @@ function Result({ profile }: { profile: Profile }) {
 
         {tab === 'data' && (
           <>
+            <SharingCard />
       <MyDataCard result={roleResult} scores={profile.scores} />
       <HoroscopeCard scores={profile.scores} />
       <div className="flex flex-wrap justify-center gap-3 pt-4">

@@ -29,6 +29,8 @@ interface NavItem {
   short?: T
   icon: LucideIcon
   end?: boolean
+  /** Shown in the desktop top bar. Personal extras (deep dive, peer view) live inside "My profile". */
+  top?: boolean
 }
 
 /** The person comes first: discovery, results and how others see you. */
@@ -36,12 +38,14 @@ const NAV: NavItem[] = [
   { to: '/', label: { th: 'หน้าแรก', en: 'Home' }, icon: Home, end: true },
   {
     to: '/test',
+    top: true,
     label: { th: 'แบบทดสอบ', en: 'Test' },
     short: { th: 'ทดสอบ', en: 'Test' },
     icon: PenLine,
   },
   {
     to: '/me',
+    top: true,
     label: { th: 'ผลของฉัน', en: 'My profile' },
     short: { th: 'ผลฉัน', en: 'Me' },
     icon: UserRound,
@@ -60,9 +64,17 @@ const NAV: NavItem[] = [
   },
   {
     to: '/personas',
+    top: true,
     label: { th: 'ตัวละคร', en: 'Characters' },
     short: { th: 'ตัวละคร', en: 'Characters' },
     icon: Sparkles,
+  },
+  {
+    to: '/codes',
+    top: true,
+    label: { th: 'สมุดรหัส', en: 'Code book' },
+    short: { th: 'รหัส', en: 'Codes' },
+    icon: BookOpen,
   },
 ]
 
@@ -193,7 +205,7 @@ function OrgMenu() {
           active ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.08] dark:text-white' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
         )}
       >
-        {t('องค์กร', 'Organisations')}
+        {t('สำหรับองค์กร', 'For organisations')}
         <ChevronDown size={14} className={cn('transition', open && 'rotate-180')} />
       </button>
       {open && (
@@ -228,7 +240,6 @@ const BAR_PATHS = ['/', '/test', '/me', '/personas']
 const BAR = NAV.filter((n) => BAR_PATHS.includes(n.to))
 const MORE: NavItem[] = [
   ...NAV.filter((n) => !BAR_PATHS.includes(n.to)),
-  { to: '/codes', label: { th: 'สมุดรหัส 128 แบบ', en: 'Code book (all 128)' }, icon: BookOpen },
 ]
 
 const BAR_ITEM = 'flex min-w-0 flex-1 select-none flex-col items-center gap-0.5 rounded-lg py-1.5 text-xs font-medium transition-colors'
@@ -339,7 +350,7 @@ export function AppShell() {
               <Logo />
             </NavLink>
             <nav className="hidden items-center gap-0.5 lg:flex" aria-label={t('เมนูหลัก', 'Main menu')}>
-              {NAV.map(({ to, label, end }) => (
+              {NAV.filter((n) => n.top).map(({ to, label, end }) => (
                 <NavLink
                   key={to}
                   to={to}

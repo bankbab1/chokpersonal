@@ -265,3 +265,73 @@ export function AgreementsCard({ scores }: { scores: Scores }) {
     </Card>
   )
 }
+
+/* ---------------------------------------- Sharing & profile ---------------------------------------- */
+
+function Switch({ checked, onChange, label, detail }: { checked: boolean; onChange: (v: boolean) => void; label: string; detail: string }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-4 rounded-xl p-3 transition hover:bg-slate-50 dark:hover:bg-white/[0.04]">
+      <span className="relative mt-0.5 inline-flex shrink-0">
+        <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <span className="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-600 peer-focus-visible:ring-offset-2 dark:bg-white/15" />
+        <span className="absolute left-0.5 top-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+      </span>
+      <span>
+        <span className="block font-medium">{label}</span>
+        <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">{detail}</span>
+      </span>
+    </label>
+  )
+}
+
+/** Name, background and sharing choices — asked here, when they matter, not before the test. */
+export function SharingCard() {
+  const t = useT()
+  const { name, setName, consent, setConsent, background, setBackground } = useAssessment()
+  return (
+    <Card>
+      <SectionTitle icon={Handshake} title={t('การแชร์และข้อมูลส่วนตัว', 'Sharing & profile')} note={t('ส่วนตัวโดยค่าเริ่มต้น', 'private by default')} />
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">{t('ชื่อที่แสดงในผล', 'Name on your result')}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('เช่น มายด์', 'e.g. Alex')} className={input} />
+        </label>
+        <div>
+          <span className="mb-1 block text-sm font-medium">{t('พื้นหลังของคุณ (ใช้กับสะพานวัฒนธรรมเท่านั้น)', 'Your background (Culture Bridge only)')}</span>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ['thai', t('คนไทย', 'Thai')],
+                ['foreign', t('ไม่ใช่คนไทย', 'Not Thai')],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={background === id}
+                onClick={() => setBackground(id)}
+                className={cn('h-11 rounded-xl border text-sm font-medium transition sm:h-10', background === id ? 'border-violet-600 bg-violet-50 text-violet-900 dark:bg-violet-500/15 dark:text-violet-100' : 'border-slate-200 dark:border-white/10')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 space-y-1">
+        <Switch
+          checked={consent.team}
+          onChange={(v) => setConsent({ team: v })}
+          label={t('แสดงใน Team map ของทีม', 'Show me on my team’s Team map')}
+          detail={t('หัวหน้าและทีมเห็นตัวละครและสรุป ไม่เห็นคำตอบรายข้อ', 'Your manager and team see your character and summary, not your answers.')}
+        />
+        <Switch
+          checked={consent.hr}
+          onChange={(v) => setConsent({ hr: v })}
+          label={t('เปิดรับโอกาสย้ายงานภายใน', 'Open to internal opportunities')}
+          detail={t('ทีมสรรหาค้นหาคุณได้เมื่อมีตำแหน่งที่เหมาะ ไม่มีการจัดอันดับหรือคัดออกอัตโนมัติ', 'Recruiters can find you for suitable roles. No ranking or automatic rejection.')}
+        />
+      </div>
+    </Card>
+  )
+}

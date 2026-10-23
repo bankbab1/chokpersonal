@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Globe2, Lock, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Lock, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/Button'
@@ -72,21 +72,32 @@ export function TestPage() {
   const level = useAssessment((s) => s.level)
   const completedLevel = useAssessment((s) => s.completedLevel)
   const [reviewing, setReviewing] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const setLevel = useAssessment((s) => s.setLevel)
+  const setConsent = useAssessment((s) => s.setConsent)
+  // Like the best-known tests: questions start straight away. Quick is the default; deeper levels are
+  // offered at the end. Starting to answer = agreeing to keep answers on this device for your result;
+  // sharing with a team or HR stays a separate opt-in in your result's Data tab.
+  useEffect(() => {
+    if (sample) return
+    if (!level) setLevel('quick')
+    if (!consent.self) setConsent({ self: true })
+  }, [sample, level, consent.self, setLevel, setConsent])
   // Never show generated sample answers as if they were the person's own.
   if (sample) return <SampleNotice />
-  // First: how deep do you want to go?
-  if (!level) return <LevelPicker />
+  if (picking || !level) return <LevelPicker onDone={() => setPicking(false)} />
   // Finished this level: a "done" screen with the option to go deeper, not the last question pre-filled.
   if (completedLevel && levelRank(completedLevel) >= levelRank(level) && !reviewing) return <DoneNotice onReview={() => setReviewing(true)} />
-  return consent.self ? <Wizard level={level} /> : <ConsentStep />
+  return <Wizard level={level} onChangeLevel={() => setPicking(true)} />
 }
 
 /* ---------------------------------------------------------------------------------------------- */
 
-function LevelPicker() {
+function LevelPicker({ onDone }: { onDone: () => void }) {
   const t = useT()
   const setLevel = useAssessment((s) => s.setLevel)
-  const [pick, setPick] = useState<Level>('standard')
+  const current = useAssessment((s) => s.level)
+  const [pick, setPick] = useState<Level>(current ?? 'quick')
   return (
     <div className="mx-auto max-w-3xl animate-rise">
       <Eyebrow>{t('เลือกระดับ', 'Choose your level')}</Eyebrow>
@@ -132,7 +143,15 @@ function LevelPicker() {
         })}
       </div>
       <div className="mt-6 flex justify-end">
-        <Button variant="primary" size="lg" iconRight={ArrowRight} onClick={() => setLevel(pick)}>
+        <Button
+          variant="primary"
+          size="lg"
+          iconRight={ArrowRight}
+          onClick={() => {
+            setLevel(pick)
+            onDone()
+          }}
+        >
           {t(`เริ่มระดับ${levelInfo(pick).name.th}`, `Start ${levelInfo(pick).name.en}`)}
         </Button>
       </div>
@@ -245,121 +264,9 @@ function DoneNotice({ onReview }: { onReview: () => void }) {
   )
 }
 
-function Toggle({ checked, onChange, label, detail }: { checked: boolean; onChange: (v: boolean) => void; label: string; detail: string }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-4 rounded-2xl p-3 transition hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.04]">
-      <span className="relative mt-0.5 inline-flex shrink-0">
-        <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-        <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-violet-600 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-600 peer-focus-visible:ring-offset-2 dark:bg-white/15" />
-        <span className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
-      </span>
-      <span>
-        <span className="block font-medium">{label}</span>
-        <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">{detail}</span>
-      </span>
-    </label>
-  )
-}
-
-function ConsentStep() {
-  const t = useT()
-  const { name, setName, consent, setConsent, background, setBackground } = useAssessment()
-  const [draft, setDraft] = useState({ self: true, team: consent.team, hr: consent.hr })
-  return (
-    <div className="mx-auto max-w-2xl animate-rise">
-      <Eyebrow>{t('ก่อนเริ่ม · PDPA', 'Before you start · Privacy')}</Eyebrow>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">{t('ผลเป็นของคุณ', 'Your results are yours')}</h1>
-      <p className="mt-3 text-slate-600 dark:text-slate-300">
-        {t(
-          'แบบประเมินมี 4 ส่วน ใช้เวลาประมาณ 25–30 นาที ส่วนแรกถามว่าคุณอยากรับบทบาทแบบไหน (48 ข้อ) ส่วนที่เหลือถามว่าคุณทำงานอย่างไร บันทึกอัตโนมัติบนเครื่องนี้ ปิดแล้วกลับมาทำต่อได้ ผลใช้เพื่อการพัฒนาและการพูดคุยเท่านั้น ไม่ใช้ตัดสินการจ้าง เลื่อนขั้น หรือประเมินผลงาน',
-          'There are 4 parts, about 25–30 minutes in all. Part 1 asks which roles you want to take on (48 items); the rest asks how you work. Answers save on this device as you go, so you can stop and come back. Results are for development and conversation only, never for hiring, promotion or performance decisions.',
-        )}
-      </p>
-      <Card className="mt-8 space-y-4">
-        <label className="block px-3 pt-1">
-          <span className="text-sm font-medium">{t('ชื่อเล่นที่จะแสดงในผล', 'Name to show on your results')}</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('เช่น มายด์', 'e.g. Alex')}
-            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-base outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-500/15 sm:text-sm dark:border-white/10 dark:bg-white/5"
-          />
-        </label>
-        <div className="px-3">
-          <span className="flex items-center gap-1.5 text-sm font-medium">
-            <Globe2 size={15} /> {t('พื้นหลังของคุณ', 'Your background')}
-          </span>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {t('ใช้ปรับคำแนะนำในส่วนสะพานวัฒนธรรมเท่านั้น ไม่มีผลกับคะแนน', 'Only used to tailor Culture Bridge tips. It never affects your scores.')}
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {(
-              [
-                ['thai', t('คนไทย', 'Thai'), t('รับคำแนะนำสำหรับทำงานกับทีมนานาชาติ', 'Get tips for working in international teams')],
-                ['foreign', t('ไม่ใช่คนไทย', 'Not Thai'), t('รับคำแนะนำสำหรับทำงานกับทีมคนไทย', 'Get tips for working in Thai teams')],
-              ] as const
-            ).map(([id, label, sub]) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={background === id}
-                onClick={() => setBackground(id)}
-                className={cn(
-                  'rounded-2xl border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600',
-                  background === id ? 'border-violet-500 bg-violet-500/10' : 'border-slate-200 dark:border-white/10',
-                )}
-              >
-                <span className="block text-sm font-semibold">{label}</span>
-                <span className="block text-xs text-slate-500 dark:text-slate-400">{sub}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Toggle
-            checked={draft.self}
-            onChange={(v) => setDraft({ ...draft, self: v })}
-            label={t('ใช้ผลเพื่อรู้จักตัวเอง (จำเป็น)', 'Use my results for self-insight (required)')}
-            detail={t('คุณเห็นผลทั้งหมดก่อนคนอื่นเสมอ คำตอบดิบไม่มีใครเห็นนอกจากคุณ', 'You always see your results first. No one but you sees your raw answers.')}
-          />
-          <Toggle
-            checked={draft.team}
-            onChange={(v) => setDraft({ ...draft, team: v })}
-            label={t('แสดงใน Team map ของทีม', 'Show me on my team’s Team map')}
-            detail={t('หัวหน้าและทีมเห็น persona และสรุป ไม่เห็นคำตอบรายข้อ', 'Your manager and team see your persona and summary, not your answers.')}
-          />
-          <Toggle
-            checked={draft.hr}
-            onChange={(v) => setDraft({ ...draft, hr: v })}
-            label={t('เปิดรับโอกาสย้ายงานภายใน', 'Open to internal opportunities')}
-            detail={t('ทีมสรรหาค้นหาคุณได้เมื่อมีตำแหน่งที่เหมาะ ทุกการค้นหาถูกบันทึก', 'Recruiters can find you for suitable roles. Every search is logged.')}
-          />
-        </div>
-      </Card>
-      <div className="mt-6 flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <Lock size={13} /> {t('ถอนความยินยอมและลบข้อมูลได้ทุกเมื่อ', 'Withdraw consent and delete your data any time')}
-        </span>
-        <Button
-          variant="glow"
-          size="lg"
-          iconRight={ArrowRight}
-          disabled={!draft.self}
-          onClick={() => {
-            setConsent(draft)
-            window.scrollTo({ top: 0, behavior: 'instant' })
-          }}
-        >
-          {t('ยอมรับและเริ่ม', 'Agree and start')}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 /* ---------------------------------------------------------------------------------------------- */
 
-function Wizard({ level }: { level: Level }) {
+function Wizard({ level, onChangeLevel }: { level: Level; onChangeLevel: () => void }) {
   const t = useT()
   const navigate = useNavigate()
   const { step, setStep, answers, complete, reset, roles } = useAssessment()
@@ -459,7 +366,18 @@ function Wizard({ level }: { level: Level }) {
         </div>
       </StickyBar>
 
-      <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">{t(section.hint)}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t(section.hint)}</p>
+        <button type="button" onClick={onChangeLevel} className="min-h-9 shrink-0 text-sm font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300">
+          {t(`ระดับ${levelInfo(level).name.th} · เปลี่ยน`, `${levelInfo(level).name.en} level · change`)}
+        </button>
+      </div>
+      {step === 0 && (
+        <p className="-mt-3 mb-6 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <Lock size={13} />
+          {t('คำตอบเก็บบนเครื่องนี้เพื่อแสดงผลให้คุณเท่านั้น ไม่ใช้ตัดสินการจ้าง การแชร์กับทีมหรือ HR เลือกเองได้ภายหลัง', 'Answers stay on this device to show you your result. Never used for hiring decisions. Sharing with a team or HR is your choice later.')}
+        </p>
+      )}
 
       <div key={step} className="animate-rise">
         {page.kind === 'roles' && (page.items[0].kind === 'preference' ? <RolePrefPage items={page.items} /> : <RolePickPage item={page.items[0]} />)}
@@ -523,12 +441,12 @@ function LikertPage({ entries, lastTs }: { entries: LikertEntry[]; lastTs: RefOb
   const refs = useRef<(HTMLDivElement | null)[]>([])
 
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-slate-200/80 dark:divide-white/[0.08]">
       {entries.map((e, i) => {
         const value = answers[e.item.id]?.value
         return (
           <div key={e.item.id} ref={(el) => void (refs.current[i] = el)}>
-            <Card className={cn('transition', value && 'opacity-70 hover:opacity-100')}>
+            <div className={cn('py-7 transition first:pt-2', value && 'opacity-60 hover:opacity-100')}>
               <p className="text-center text-lg font-medium leading-relaxed">{t(e.item.text)}</p>
               <div className="mt-5 flex items-center justify-center gap-2 sm:gap-4" role="radiogroup" aria-label={t(e.item.text)}>
                 <span className="hidden w-24 text-right text-xs font-medium text-orange-600 sm:block dark:text-orange-300">{t('ไม่เห็นด้วย', 'Disagree')}</span>
@@ -570,7 +488,7 @@ function LikertPage({ entries, lastTs }: { entries: LikertEntry[]; lastTs: RefOb
                 <span>{t('เห็นด้วย', 'Agree')}</span>
               </div>
               {value && <div className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">{t(LIKERT_SCALE[value - 1])}</div>}
-            </Card>
+            </div>
           </div>
         )
       })}
@@ -652,12 +570,12 @@ function RolePrefPage({ items }: { items: RoleItem[] }) {
   const roles = useAssessment((s) => s.roles)
   const answer = useAssessment((s) => s.answerRole)
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-slate-200/80 dark:divide-white/[0.08]">
       {items.map((q) => {
         const value = roles[q.id]
         const chosen = q.options.find((o) => o.id === value)
         return (
-          <Card key={q.id} className={cn('transition', value && 'opacity-80 hover:opacity-100')}>
+          <div key={q.id} className={cn('py-7 transition first:pt-2', value && 'opacity-60 hover:opacity-100')}>
             <p className="text-center text-lg font-medium leading-relaxed">{t(q.prompt)}</p>
             <div className="mt-5 flex items-center justify-center gap-2 sm:gap-4" role="radiogroup" aria-label={t(q.prompt)}>
               <span className="hidden w-24 text-right text-xs font-medium text-orange-600 sm:block dark:text-orange-300">{t('ไม่ตรง', 'Not me')}</span>
@@ -693,7 +611,7 @@ function RolePrefPage({ items }: { items: RoleItem[] }) {
               <span className="text-xs text-slate-500 dark:text-slate-400">{chosen ? t(chosen.text) : ''}</span>
               <UnclearFlag id={q.id} />
             </div>
-          </Card>
+          </div>
         )
       })}
     </div>
