@@ -6,6 +6,8 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // GitHub Pages serves the app under /<repo>/; the Pages workflow sets BASE_PATH. Locally it stays '/'.
+  base: process.env.BASE_PATH ?? '/',
   // Listen on every interface so other devices on the LAN can open http://<this-PC-IPv4>:5220
   server: { host: true },
   preview: { host: true },

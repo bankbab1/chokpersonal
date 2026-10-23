@@ -8,6 +8,7 @@ import { sayDo } from '@/domain/insights'
 import { demoRatings, makeInvite, parseResponseCode, RELATIONS } from '@/domain/peer'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
+import { appUrl } from '@/lib/appUrl'
 import { usePeerSummary, useProfile } from '@/lib/useProfile'
 import { useAssessment } from '@/store/assessment'
 
@@ -34,7 +35,7 @@ export function PeerPage() {
       </div>
     )
 
-  const inviteUrl = `${window.location.origin}/rate/${makeInvite(myId, name || t('เพื่อนของคุณ', 'your colleague'))}`
+  const inviteUrl = appUrl(`rate/${makeInvite(myId, name || t('เพื่อนของคุณ', 'your colleague'))}`)
   const lineShare = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(inviteUrl)}`
   const sd = sayDo(profile.scores, peers?.delivery)
   const blind = peers?.gaps.filter((g) => g.kind === 'blind-spot') ?? []

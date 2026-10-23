@@ -20,6 +20,7 @@ import {
 } from '@/domain/sourcing'
 import { cn } from '@/lib/cn'
 import { tt, useT, type T } from '@/lib/i18n'
+import { appUrl } from '@/lib/appUrl'
 import { useCandidatePool } from '@/lib/useProfile'
 import { pipelineKey, useSourcing } from '@/store/sourcing'
 import { NotFound } from '../NotFound'
@@ -81,7 +82,7 @@ function People({ role }: { role: RoleSpec }) {
     setStageFilter('')
   }
   const counts = STAGES.map((st) => ({ ...st, n: base.filter((c) => stageOf(c).stage === st.id).length }))
-  const inviteUrl = `${window.location.origin}/test?invite=${role.id}`
+  const inviteUrl = appUrl(`test?invite=${role.id}`)
   const tm = TEAMS.find((x) => x.id === role.teamId)
   const mgr = MANAGER_TEMPLATES.find((m) => m.id === role.managerTemplate)
   const teamTpl = TEAM_TEMPLATES.find((m) => m.id === role.teamTemplate)

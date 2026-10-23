@@ -44,7 +44,10 @@ const router = createBrowserRouter([
       { path: '*', element: <NotFound /> },
     ],
   },
-])
+], {
+  // Matches Vite's `base`, so routes work at /<repo>/ on GitHub Pages and at / locally.
+  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+})
 
 export function App() {
   return <RouterProvider router={router} />

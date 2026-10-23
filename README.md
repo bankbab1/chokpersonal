@@ -44,6 +44,10 @@ npm test         # Vitest: domain + spec golden cases
 npm run build
 ```
 
+## Deploy (GitHub Pages)
+
+Every push to `main` runs `.github/workflows/pages.yml`: tests, a build under `/<repo>/` (`BASE_PATH`), a `404.html` copy so deep links work, then deploys to **https://bankbab1.github.io/chokpersonal/**. Locally the app still runs at `/`.
+
 ## Structure
 
 | Path | What |
