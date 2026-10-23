@@ -51,14 +51,18 @@ export interface CodeAxisDef {
   /** Where the axis comes from: research basis and how it relates to familiar tests. */
   origin: T
   /** Measured dimensions averaged into the axis (inverted ones count as 100 − score). */
-  sources: { dim: DimCode; invert?: boolean }[]
+  sources: { dim: DimCode; invert?: boolean; weight?: number }[]
+  /** Points from 50 within which the letter is only "leaning" (shown faded). Defaults to LEAN. */
+  lean?: number
   left: CodePole
   right: CodePole
 }
 
 /** 0 = fully the left pole, 100 = fully the right pole. */
-export const axisValue = (axis: CodeAxisDef, s: Scores) =>
-  axis.sources.reduce((sum, x) => sum + (x.invert ? 100 - s[x.dim] : s[x.dim]), 0) / axis.sources.length
+export const axisValue = (axis: CodeAxisDef, s: Scores) => {
+  const w = axis.sources.reduce((n, x) => n + (x.weight ?? 1), 0)
+  return axis.sources.reduce((sum, x) => sum + (x.weight ?? 1) * (x.invert ? 100 - s[x.dim] : s[x.dim]), 0) / w
+}
 
 const P = (letter: string, name: [string, string], sentence: [string, string]): CodePole => ({ letter, name: tt(...name), sentence: tt(...sentence) })
 
@@ -69,7 +73,9 @@ export const CODE_AXES: CodeAxisDef[] = [
     group: 'core',
     question: tt('คุณได้พลังจากไหน: จากคน หรือจากความเงียบ', 'Where do you get energy: from people or from quiet?'),
     origin: tt('มาจาก Extraversion ใน HEXACO / Big Five ซึ่งเป็นมิติที่มีงานวิจัยรองรับมากที่สุด วัดเป็นสเปกตรัม ไม่บังคับให้เลือกข้างที่ 50', 'From Extraversion in HEXACO / Big Five, the best-researched trait there is, measured as a spectrum instead of forcing a side at 50.'),
-    sources: [{ dim: 'X' }],
+    sources: [{ dim: 'X', weight: 3 }, { dim: 'SK', weight: 1 }],
+    // Same rule as the energy meter: ≤39 introvert, 40–60 ambivert (faded letter), ≥61 extrovert.
+    lean: 11,
     left: P('I', ['เติมพลังในความเงียบ', 'Introvert'], ['คุณชาร์จพลังในความเงียบ และคิดก่อนพูด', 'You recharge in quiet and think before you speak.']),
     right: P('E', ['ได้พลังจากคน', 'Extravert'], ['คุณมีพลังเมื่ออยู่กับคน และคิดไปพูดไปได้เก่ง', 'You draw energy from people and think out loud.']),
   },
@@ -214,7 +220,7 @@ export const workfitCode = (s: Scores): WorkfitCode => {
     const value = Math.round(axisValue(axis, s))
     const right = value >= 50
     const pole = right ? axis.right : axis.left
-    const clear = Math.abs(value - 50) >= LEAN
+    const clear = Math.abs(value - 50) >= (axis.lean ?? LEAN)
     return {
       axis,
       value,

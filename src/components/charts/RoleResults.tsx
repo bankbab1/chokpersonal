@@ -403,6 +403,8 @@ export function MyDataCard({ result, scores }: { result: RoleResult | null; scor
       preferred_context: st.context,
       modifiers: modifiersOf(st.context).map((m) => `${m.axis}_${m.band}`),
       desired_growth_roles: st.growthRoles,
+      skills: st.skills.map((k) => ({ name: k.name, level: k.level, status: k.evidence ? 'evidence_submitted' : 'self_reported', evidence: k.evidence ?? null })),
+      working_agreements: st.agreements,
       work_style: { workfit_code: workfitCode(scores).code, dimensions: scores },
       answers: { roles: st.roles, style: st.answers, deep: st.deep },
       peer_ratings: st.peerRatings.length,

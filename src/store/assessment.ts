@@ -11,6 +11,30 @@ import { useFun } from './fun'
 import { LEVEL_ORDER, type Level } from '@/domain/levels'
 import type { Answers, FamilyId } from '@/domain/types'
 
+/** A skill the person says they have (spec F-09). Never feeds any personality score. */
+export interface SkillClaim {
+  id: string
+  name: string
+  /** 1 = learning, 2 = can do with help, 3 = can do alone, 4 = can teach others. */
+  level: 1 | 2 | 3 | 4
+  /** Link or note pointing to real work. Present = evidence submitted (not reviewed: review needs an org reviewer). */
+  evidence?: string
+}
+
+/** A working agreement with a manager or teammate (spec F-19). */
+export interface Agreement {
+  id: string
+  withWhom: string
+  topic: string
+  action: string
+  owner: string
+  due: string
+  /** What we'll look for to know it works. */
+  success: string
+  done: boolean
+  followUp?: string
+}
+
 export interface Consent {
   self: boolean
   team: boolean
@@ -31,6 +55,10 @@ interface State {
   /** Working preferences the person set; only confirmed values are ever used. */
   context: ContextProfile
   setContext: (dim: ContextDimId, value: number | null, confirmed: boolean) => void
+  skills: SkillClaim[]
+  setSkills: (s: SkillClaim[]) => void
+  agreements: Agreement[]
+  setAgreements: (a: Agreement[]) => void
   /** Question ids the person marked as unclear — content feedback only, never scored. */
   unclear: string[]
   toggleUnclear: (id: string) => void
@@ -147,6 +175,10 @@ export const useAssessment = create<State>()(
       answerRole: (id, optionId) => set((st) => ({ roles: { ...st.roles, [id]: optionId } })),
       context: emptyContext(),
       setContext: (dim, value, confirmed) => set((st) => ({ context: { ...st.context, [dim]: { value, confirmed } } })),
+      skills: [],
+      setSkills: (skills) => set({ skills }),
+      agreements: [],
+      setAgreements: (agreements) => set({ agreements }),
       unclear: [],
       toggleUnclear: (id) => set((st) => ({ unclear: st.unclear.includes(id) ? st.unclear.filter((x) => x !== id) : [...st.unclear, id] })),
       growthRoles: [],
@@ -157,7 +189,7 @@ export const useAssessment = create<State>()(
       completedLevel: undefined,
       deleteAll: () => {
         set({
-          answers: emptyAnswers(), step: 0, completedAt: undefined, deep: {}, roles: {}, context: emptyContext(), sample: false, level: null, completedLevel: undefined, growthRoles: [], unclear: [],
+          answers: emptyAnswers(), step: 0, completedAt: undefined, deep: {}, roles: {}, context: emptyContext(), sample: false, level: null, completedLevel: undefined, growthRoles: [], unclear: [], skills: [], agreements: [],
           peerRatings: [], name: '', consent: { self: false, team: false, hr: false }, invitedRole: undefined, background: 'thai',
           myId: Math.random().toString(36).slice(2, 10),
         })

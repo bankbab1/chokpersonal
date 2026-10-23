@@ -80,7 +80,7 @@ function LetterSheet({ letters, index, onIndex }: { letters: CodeLetter[]; index
             <div className="mt-0.5 text-lg font-semibold">
               {l.shown} · {t(l.pole.name)}{' '}
               <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                {l.strength}%{!l.clear && t(' · ค่อนข้าง', ' · leaning')}
+                {l.strength}%{!l.clear && (l.axis.id === 'energy' ? t(' · สมดุล (Ambivert)', ' · ambivert') : t(' · ค่อนข้าง', ' · leaning'))}
               </span>
             </div>
             <p className="mt-1">{t(l.pole.sentence)}</p>
@@ -94,7 +94,9 @@ function LetterSheet({ letters, index, onIndex }: { letters: CodeLetter[]; index
             </div>
             {!l.clear && (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                {t(`อยู่ใกล้กึ่งกลาง (ห่างไม่ถึง ${LEAN} คะแนน) คุณใช้ได้ทั้งสองแบบ ตัวอักษรจึงแสดงสีจาง`, `Near the middle (within ${LEAN} points): you can work both ways, so the letter shows faded.`)}
+                {l.axis.id === 'energy'
+                  ? t('คุณเป็นแบบสมดุล (Ambivert): อยู่ช่วง 40–60 ใช้ได้ทั้งพลังจากคนและจากความเงียบ ตัวอักษรจึงแสดงสีจาง', 'You are an ambivert: in the 40–60 band you draw energy from both people and quiet, so the letter shows faded.')
+                  : t(`อยู่ใกล้กึ่งกลาง (ห่างไม่ถึง ${l.axis.lean ?? LEAN} คะแนน) คุณใช้ได้ทั้งสองแบบ ตัวอักษรจึงแสดงสีจาง`, `Near the middle (within ${l.axis.lean ?? LEAN} points): you can work both ways, so the letter shows faded.`)}
               </p>
             )}
           </div>

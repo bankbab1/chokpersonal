@@ -6,6 +6,7 @@ import { DeepResults } from '@/components/charts/DeepResults'
 import { DimensionBars } from '@/components/charts/DimensionBars'
 import { HoroscopeCard } from '@/components/charts/Horoscope'
 import { CharacterHero, CharacterSummaryCard, LifeOutsideWorkCard } from '@/components/charts/CharacterResults'
+import { AgreementsCard, SkillsCard } from '@/components/charts/GrowthCards'
 import { ContextCard, ExploreCard, ManagerTeamCard, MyDataCard, RoleScoresCard, SectionTitle } from '@/components/charts/RoleResults'
 import { SameTypeCard } from '@/components/charts/SameType'
 import { SayDoMeter } from '@/components/charts/SayDoMeter'
@@ -138,6 +139,7 @@ function Result({ profile }: { profile: Profile }) {
             ) : (
       <ProRolesCta />
             )}
+            <SkillsCard />
           </>
         )}
 
@@ -330,6 +332,7 @@ function Result({ profile }: { profile: Profile }) {
             })}
           </div>
         </Card>
+            <AgreementsCard scores={profile.scores} />
           </>
         )}
 

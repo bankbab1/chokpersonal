@@ -21,3 +21,17 @@ describe('test levels', () => {
     for (const id of b) expect(c.has(id)).toBe(true)
   })
 })
+
+describe('energy is one rule everywhere', () => {
+  it('letter 1 matches the introvert / ambivert / extrovert meter for every sample person', async () => {
+    const { SAMPLE_POPULATION } = await import('./demo')
+    const { workfitCode } = await import('./code')
+    const { energy } = await import('./styles')
+    for (const s of SAMPLE_POPULATION) {
+      const l = workfitCode(s).letters[0]
+      const kind = energy(s).kind
+      if (kind === 'ambivert') expect(l.clear).toBe(false)
+      else expect(l.clear && l.shown).toBe(kind === 'introvert' ? 'I' : 'E')
+    }
+  })
+})
