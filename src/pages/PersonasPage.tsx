@@ -2,20 +2,22 @@ import { ArrowLeft, ArrowRight, BookOpen } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { CodeCharacter, tint } from '@/components/character/RoleCharacter'
+import { VariantMindmap } from '@/components/charts/VariantMindmap'
 import { Button } from '@/components/ui/Button'
 import { Card, Chip, Eyebrow } from '@/components/ui/Card'
 import { StickyBar } from '@/components/ui/StickyBar'
 import { CHARACTER_GROUPS, CHARACTERS, characterByKey, groupByKey, type WorkCharacter } from '@/domain/characters'
-import { CODE_AXES, CODE_BOOK } from '@/domain/code'
+import { CODE_AXES } from '@/domain/code'
 import { cn } from '@/lib/cn'
 import { useT, type T } from '@/lib/i18n'
 import { useProfile } from '@/lib/useProfile'
 import { workfitCode } from '@/domain/code'
 
-const useMyKey = () => {
+const useMyCode = () => {
   const profile = useProfile()
-  return profile ? workfitCode(profile.scores).code.slice(0, 4) : null
+  return profile ? workfitCode(profile.scores).code : null
 }
+const useMyKey = () => useMyCode()?.slice(0, 4) ?? null
 
 export function PersonasPage() {
   const { id } = useParams()
@@ -109,13 +111,13 @@ function CharacterPage({ ch }: { ch: WorkCharacter }) {
   const t = useT()
   const navigate = useNavigate()
   const mine = useMyKey()
+  const myCode = useMyCode()
   const g = groupByKey(ch.group)
   const [current, setCurrent] = useState('overview')
   const letters = ch.key.split('').map((l, i) => {
     const a = CODE_AXES[i]
     return a.left.letter === l ? a.left : a.right
   })
-  const variants = CODE_BOOK.filter((e) => e.code.startsWith(ch.key))
   const siblings = CHARACTERS.filter((c) => c.group === ch.group && c.key !== ch.key)
 
   const chapters: Chapter[] = [
@@ -168,25 +170,7 @@ function CharacterPage({ ch }: { ch: WorkCharacter }) {
     {
       id: 'variants',
       title: { th: '8 แบบย่อย (3 ตัวหลัง)', en: '8 variants (last 3 letters)' },
-      body: (
-        <>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            {t('ตัวอักษร 3 ตัวหลังบอกว่าคุณทำงานกับคนแบบไทยอย่างไร: พูดตรงหรือรักษาน้ำใจ มีระบบหรือไม่เป็นไร ทีมเราหรือทางของตัวเอง', 'The last 3 letters show how you work with people in a Thai team: direct or harmony, rules or mai pen rai, “we” or own way.')}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {variants.map((v) => (
-              <Link key={v.code} to={`/codes/${v.code}`} className="rounded-xl border border-slate-200/80 px-3 py-2 text-sm transition hover:border-slate-300 active:scale-[0.98] dark:border-white/[0.08] dark:hover:border-white/20">
-                <span className="block font-bold tracking-wide" style={{ color: g.color }}>
-                  {v.code}
-                </span>
-                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                  {v.wc.crew.emoji} {t(v.wc.crew.name)}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </>
-      ),
+      body: <VariantMindmap characterKey={ch.key} mine={myCode} />,
     },
   ]
 
