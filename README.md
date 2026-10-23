@@ -46,7 +46,23 @@ npm run build
 
 ## Deploy (GitHub Pages)
 
-Every push to `main` runs `.github/workflows/pages.yml`: tests, a build under `/<repo>/` (`BASE_PATH`), a `404.html` copy so deep links work, then deploys to **https://bankbab1.github.io/chokpersonal/**. Locally the app still runs at `/`.
+GitHub Pages uses **Deploy from a branch → main → / (root)** at **https://bankbab1.github.io/chokpersonal/**.
+
+The editable HTML template lives in `web/index.html`; root `index.html`, `404.html`, `assets/`, and `favicon.svg` are generated output. Keep editing React code under `src/` as usual.
+
+After source changes, run:
+
+```bash
+npm ci
+npm test
+npm run build:pages
+git add .
+git commit -m "Update website and Pages build"
+git push origin main
+```
+
+GitHub Pages publishes the committed root files. The workflow validates tests and checks that the committed website matches the source; it does not use Actions as the Pages deployment source. `npm run dev` still serves `/` locally, and `npm run build` writes a local build to `dist/`.
+
 
 ## Structure
 

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@source './';
 
 /* Dark mode follows UI.md §2: opt-in via an ancestor with data-theme="dark" (set on the shell root). */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
