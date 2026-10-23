@@ -14,7 +14,7 @@ import { BookOpen,
   UsersRound,
   type LucideIcon,
 } from 'lucide-react'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { cn } from '@/lib/cn'
 import { useHtmlLang, useLangStore, useT, type T } from '@/lib/i18n'
@@ -287,6 +287,7 @@ function PhoneBar() {
             key={to}
             to={to}
             end={end}
+            onClick={() => { if (to === pathname) window.scrollTo({ top: 0, behavior: 'instant' }) }}
             className={({ isActive }) => cn(BAR_ITEM, NAV_FOCUS_RING, isActive ? 'text-violet-700 dark:text-violet-300' : 'text-slate-500 dark:text-slate-400')}
           >
             <Icon size={20} strokeWidth={2} />
@@ -331,22 +332,22 @@ function PhoneBar() {
 export function AppShell() {
   const t = useT()
   const { theme, toggle } = useTheme()
-  const { pathname, hash } = useLocation()
+  const { pathname, hash, key } = useLocation()
   useHtmlLang()
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hash) {
       // Wait a frame so the target section has rendered.
       const id = window.setTimeout(() => document.querySelector(hash)?.scrollIntoView({ block: 'start' }), 60)
       return () => window.clearTimeout(id)
     }
     window.scrollTo({ top: 0, behavior: 'instant' })
-  }, [pathname, hash])
+  }, [pathname, hash, key])
   return (
     <ThemeContext.Provider value={theme}>
       <div data-theme={theme} className="relative min-h-dvh bg-[#fafafa] text-slate-900 dark:bg-[#0c0c10] dark:text-slate-100">
         <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white backdrop-blur dark:border-white/[0.08] dark:bg-[#0c0c10]/90">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr]">
-            <NavLink to="/" className={cn('justify-self-start rounded-lg', NAV_FOCUS_RING)} aria-label={t('Workfit หน้าแรก', 'Workfit home')}>
+            <NavLink to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} className={cn('justify-self-start rounded-lg', NAV_FOCUS_RING)} aria-label={t('Workfit หน้าแรก', 'Workfit home')}>
               <Logo />
             </NavLink>
             <nav className="hidden items-center gap-0.5 lg:flex" aria-label={t('เมนูหลัก', 'Main menu')}>
